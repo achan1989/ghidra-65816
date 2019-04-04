@@ -1,0 +1,549 @@
+# sleigh specification file for WDC 65816
+
+
+define endian=little;
+define alignment=1;
+
+define space RAM       type=ram_space       size=3  default;
+define space register  type=register_space  size=1;
+
+define register offset=0x00  size=3  [ PC_FULL ];
+define register offset=0x00  size=2  [ PC ];
+define register offset=0x02  size=1  [ PBR ];
+
+define register offset=0x10  size=2  [ C   X      Y      DP  S ];
+define register offset=0x10  size=1  [ A B XLow _ YLow _ _ _ _ _ ];
+define register offset=0x20  size=1  [ DBR ];
+
+# Status flags.
+define register offset=0x30  size=1  [ NF VF MF XF DF IF ZF CF EF ];
+
+
+#TOKENS
+
+define context MF
+    is_m8=(0,0)
+;
+
+define context XF
+    is_x8=(0,0)
+;
+
+define context DF
+    is_dec=(0,0)
+;
+
+define context EF
+    is_emu=(0,0)
+;
+
+define token opbyte (8)
+   op       = (0,7)
+
+   aaa      = (5,7)
+   bbb      = (2,4)
+   cc       = (0,1)
+;
+
+define token data8 (8)
+   imm8     = (0,7)
+   rel      = (0,7) signed
+;
+
+define token data16 (16)
+    imm16 = (0,15)
+;
+
+define token data24 (24)
+    imm24 = (0,23)
+;
+
+macro make_addr24(out, bank, addr16) {
+    local bank24:3 = zext(bank & 0xFF);
+    local addr24:3 = zext(addr16 & 0xFFFF);
+    local result:3 = (bank24 << 16) | addr24;
+    out = result;
+}
+
+macro calculate_dp_addr24(out, offset8) {
+    local result:3;
+
+    if (is_emu==1 && (DP:1 == 0)) goto <emu>;
+    goto <not_emu>;
+
+    <emu>
+    result = zext(offset8:1);
+    goto <end>;
+
+    <not_emu>
+    local offset16:2 = zext(offset8:1);
+    # This is modulo 16 bits, always in bank 0.
+    local addr16:2 = DP + offset16;
+    result = zext(addr16);
+
+    <end>
+    out = result;
+}
+
+macro calculate_dp_addr24_no_emu(out, offset8) {
+    local result:3;
+
+    local offset16:2 = zext(offset8:1);
+    # This is modulo 16 bits.
+    local addr16:2 = DP + offset16;
+    result = zext(addr16);
+
+    out = result;
+}
+
+macro read16_dp_offset(out, offset8) {
+    local addrLo:3;
+    calculate_dp_addr24(addrLo, offset8:1);
+    local addrHi:3;
+    calculate_dp_addr24(addrHi, offset8:1 + 1);
+
+    local lo:1 = *addrLo;
+    local hi:1 = *addrHi;
+    local value:2 = (zext(hi) << 8) | zext(lo);
+    out = value;
+}
+
+macro read24_dp_offset(out, offset8) {
+    local addrLo:3;
+    calculate_dp_addr24(addrLo, offset8:1);
+    local addrHi:3;
+    calculate_dp_addr24(addrHi, offset8:1 + 1);
+    local addrBank:3;
+    calculate_dp_addr24(addrBank, offset8:1 + 2);
+
+    local lo:1 = *addrLo;
+    local hi:1 = *addrHi;
+    local bank:1 = *addrBank;
+    local value:3 = (zext(bank) << 16) | (zext(hi) << 8) | zext(lo);
+    out = value;
+}
+
+macro flag8_NZ(acc) {
+    NF = (acc & 0x80) != 0;
+    ZF = acc:1 == 0;
+}
+
+macro flag16_NZ(acc) {
+    NF = (acc & 0x8000) != 0;
+    ZF = acc:2 == 0;
+}
+
+
+################################################################
+# Psuedo Instructions
+################################################################
+
+################################################################
+REL: reloc		is rel	[ reloc = inst_next + rel; ] { export *:2 reloc; }
+
+# Addressing modes for primary group instructions (ADC AND CMP EOR LDA ORA SBC STA).
+# TODO: deal with 65802/65816 in native/emulation modes?
+# TODO: is explicit use of const space necessary?
+
+# In the 6502/65C02, the effective address formed using zero page indexed addressing from a zero page
+# base address of $F0 and an index of $20 is $10; that is, zero page indexed effective addresses wrap around to
+# always remain in the zero page. In the emulation mode this is also true. But in native mode, there is no page
+# wraparound: a direct page starting at $2000 combined with a direct page base of $20 and a sixteen-bit index
+# holding $300 results in an effective address of $2320.  (p52)
+
+# [Speaking about the 65802] While the direct page can be set to the zero page, direct page indexed addresses can cross pages
+# in native mode, but wrap on the 6502.  (p58)
+
+# Index wrapping is described on p98.
+# Addressing mode syntax on p155.
+
+# [Speaking about the 658xx] Pay particular attention to the peculiarities of the direct page in the emulation mode: as with the 6502
+# and 65C02, instructions which use direct page addressing modes will [appear to?] “wrap” to stay within the zero page, but
+# only when the direct page register is equal to zero. Opcodes which are not found on the 6502 or 65C02 will not
+# wrap at all, even when the direct page is equal to zero in the emulation mode.  (p278)
+
+# Absolute.
+# Always with DBR for the primary group instructions. No change when emulation mode.
+OP1_MAIN: !$imm16    is bbb=3 & cc=1; imm16  { local tmp:3; make_addr24(tmp, DBR, imm16); export *:2 tmp; }
+
+# Absolute long.
+# No change when emulation mode, this does not exist on the 6502.
+OP1_MAIN: >$imm24    is bbb=3 & cc=3; imm24  { local tmp:3 = imm24; export *:2 tmp; }
+
+# Direct page.
+# Emulation mode may cause offset to wrap.
+OP1_MAIN: <$imm8    is bbb=1 & cc=1; imm8  { local tmp:3; calculate_dp_addr24(tmp, imm8); export *:2 tmp; }
+
+# Direct page indirect.
+# No change when emulation mode, this does not exist on the 6502.
+OP1_MAIN: ($imm8)    is bbb=4 & cc=2; imm8  {
+    local ind:3;
+    calculate_dp_addr24_no_emu(ind, imm8);
+
+    local addr16:2 = * ind;
+
+    local ea:3;
+    make_addr24(ea, DBR, addr16);
+    export *:2 ea;
+}
+
+# Direct page indirect long.
+# No change when emulation mode, this does not exist on the 6502.
+OP1_MAIN: [$imm8]    is bbb=1 & cc=3; imm8  {
+    local ind:3;
+    calculate_dp_addr24_no_emu(ind, imm8);
+
+    local ea:3 = * ind;
+    export *:2 ea;
+}
+
+# Absolute indexed X.
+# TODO don't think this is affected by emulation mode?
+OP1_MAIN: !$imm16,X    is bbb=7 & cc=1; imm16  {
+    local base:3;
+    make_addr24(base, DBR, imm16);
+
+    local idx:2 = X;
+    if (!(is_x8 == 1)) goto <skip_idx8>;
+    idx = zext(XLow);
+    <skip_idx8>
+
+    local ea:3 = base + zext(idx);
+    export *:2 ea;
+}
+
+# Absolute long indexed X.
+# No change when emulation mode.
+OP1_MAIN: >$imm24,X    is bbb=7 & cc=3; imm24  {
+    local base:3 = imm24;
+
+    local idx:2 = X;
+    if (!(is_x8 == 1)) goto <skip_idx8>;
+    idx = zext(XLow);
+    <skip_idx8>
+
+    local ea:3 = base + zext(idx);
+    export *:2 ea;
+}
+
+# Absolute indexed Y.
+# TODO don't think this is affected by emulation mode?
+OP1_MAIN: !$imm16,Y    is bbb=6 & cc=1; imm16  {
+    local base:3;
+    make_addr24(base, DBR, imm16);
+
+    local idx:2 = Y;
+    if (!(is_x8 == 1) goto <skip_idx8>;
+    idx = zext(YLow);
+    <skip_idx8>
+
+    local ea:3 = base + zext(idx);
+    export *:2 ea;
+}
+
+# Direct page indexed X.
+# Emulation mode may restrict addresses to the zero page.
+# TODO: check against higan.
+OP1_MAIN: $imm8,X    is bbb=5 & cc=1; imm8  {
+    local idx:2 = X;
+    if (!(is_x8 == 1)) goto <skip_idx8>;
+    idx = zext(XLow);
+    <skip_idx8>
+
+    # DP + imm8 + X, then set bank to 0.
+    local ea:3 = zext(DP + zext(imm8) + idx);
+
+    # Restrict to the zero page if emulation mode and DP=0.
+    if (!(is_emu==1 && DP == 0)) goto <skip_emu>;
+    ea = ea & 0xFF;
+    <skip_emu>
+
+    export *:2 ea;
+}
+
+# Direct page indexed indirect X.
+# Emulation mode restricts indirection addresses to the direct page.
+# TODO: check against higan, use DP macro?
+OP1_MAIN: (<$imm8,X)    is bbb=0 & cc=1; imm8  {
+    local idx:2 = X;
+    if (!(is_x8 == 1) goto <skip_idx8>;
+    idx = zext(XLow);
+    <skip_idx8>
+
+    local ind:3;
+    if (!(is_emu==1)) goto <not_emu>;
+
+    <emu>
+    # When the offset exceeds 0xFF it wraps.
+    offset:2 = zext(imm8) + idx;
+    ind = zext(DP + offset);
+    goto <end>;
+
+    <not_emu>
+    # The indirection address wraps to stay in bank 0.
+    ind = zext(DP + zext(imm8) + idx);
+
+    <end>
+
+    local ea:3;
+    make_addr24(ea, DBR, (*:2 ind));
+
+    export *:2 ea;
+}
+
+# Direct page indirect, indexed Y.
+# "The array of memory accessible to the indirect indexed addressing mode can extend beyond the
+# current 64K data bank into the next 64K bank, if the index plus the array base exceeds $FFFF."
+OP1_MAIN: ($imm8),Y    is bbb=4 & cc=1; imm8  {
+    local ind:2;
+    read16_dp_offset(ind, imm8);
+
+    local base_ea:3;
+    make_addr24(base_ea, DBR, ind);
+
+    local idx:3 = zext(Y);
+    if (!(is_x8 == 1) goto <skip_idx8>;
+    idx = zext(YLow);
+    <skip_idx8>
+
+    local ea:3 = base_ea + idx;
+    export *:2 ea;
+}
+
+# Direct page indirect long, indexed Y.
+OP1_MAIN: [$imm8],Y    is bbb=5 & cc=3; imm8  {
+    local ind:3;
+    read24_dp_offset(ind, imm8);
+
+    local idx:3 = zext(Y);
+    if (!(is_x8 == 1) goto <skip_idx8>;
+    idx = zext(YLow);
+    <skip_idx8>
+
+    local ea:3 = ind + idx;
+    export *:2 ea;
+}
+
+# Stack relative.
+OP1_MAIN: $imm8,S    is bbb=0 & cc=3; imm8  {
+    local addr16:2 = S + zext(imm8);
+    local tmp:3;
+    make_addr24(tmp, 0, addr16);
+    export *:2 tmp;
+}
+
+# Stack relative indirect, indexed Y.
+OP1_MAIN: ($imm8,S),Y    is bbb=4 & cc=3; imm8  {
+    local stack_addr16:2 = S + zext(imm8);
+
+    local ind_lo_addr:1;
+    make_addr24(ind_lo_addr, 0, stack_addr16);
+    local ind_lo:1 = *ind_lo_addr;
+    local ind_hi_addr:1;
+    make_addr24(ind_hi_addr, 0, stack_addr16 + 1);
+    local ind_hi:1 = *ind_hi_addr;
+    local ind:2 = (zext(ind_hi) << 8) | zext(ind_lo);
+
+    local ea_base:3;
+    make_addr24(ea_base, DBR, ind);
+
+    local idx:3 = zext(Y);
+    if (!(is_x8 == 1) goto <skip_idx8>;
+    idx = zext(YLow);
+    <skip_idx8>
+
+    local ea:3 = ea_base + idx;
+    export *:2 ea;
+}
+
+# Immediate, accumulator, 8 bit mode.
+OP1_IMM_ACC: #$imm8    is bbb=2 & cc=1 & is_m8=1; imm8  {
+    local value:2 = zext(imm8);
+    export value;
+}
+
+# Immediate, accumulator, 16 bit mode.
+OP1_IMM_ACC: #$imm16    is bbb=2 & cc=1 & is_m8=0; imm16  {
+    local value:2 = imm16;
+    export value;
+}
+
+# Two subsets of the addressing modes for the primary group instructions.
+# OP1 is all of them.
+# OP1_NO_IMM is all of them except the immediate (can't store to an immediate).
+OP1_NO_IMM: OP1_MAIN  is OP1_MAIN  { export OP1_MAIN; }
+OP1: OP1_MAIN  is OP1_MAIN  { export OP1_MAIN; }
+OP1: OP1_IMM_ACC  is OP1_IMM_ACC  { export OP1_IMM_ACC; }
+
+
+# Begin instructions.
+
+# ADC with decimal mode is unimplemented.
+:ADC OP1    is (aaa=3 & is_dec=1) ... & OP1  unimpl
+
+# ADC 8 bit binary.
+:ADC OP1    is (aaa=3 & is_dec=0 & is_m8=1) ... & OP1
+{
+    local data:1 = OP1:1;
+    local result:4;
+
+    result = zext(A) + zext(data) + zext(CF);
+    VF = (~zext(A ^ data) & (zext(A) ^ result) & 0x80) != 0;
+    CF = result s> 0xFF;
+    flag8_NZ(result);
+
+    A = result:1;
+}
+
+# ADC 16 bit binary.
+:ADC OP1    is (aaa=3 & is_dec=0 & is_m8=0) ... & OP1
+{
+    local data:2 = OP1:2;
+    local result:4;
+
+    result = zext(C) + zext(data) + zext(CF);
+    VF = (~zext(C ^ data) & (zext(C) ^ result) & 0x8000) != 0;
+    CF = result s> 0xFFFF;
+    flag16_NZ(result);
+
+    C = result:2;
+}
+
+# AND 8 bit.
+:AND OP1    is (aaa=1 & is_m8=1) ... & OP1
+{
+    local data:1 = OP1:1;
+
+    A = A & data;
+    flag8_NZ(A);
+}
+
+# AND 16 bit.
+:AND OP1    is (aaa=1 & is_m8=0) ... & OP1
+{
+    local data:2 = OP1:2;
+
+    C = C & data;
+    flag16_NZ(C);
+}
+
+# CMP 8 bit.
+:CMP OP1    is (aaa=6 & is_m8=1) ... & OP1
+{
+    local data:1 = OP1:1;
+    local result:4;
+
+    result = sext(A) - sext(data);
+    flag8_NZ(result);
+    CF = result s>= 0;
+}
+
+# CMP 16 bit.
+:CMP OP1    is (aaa=6 & is_m8=0) ... & OP1
+{
+    local data:2 = OP1:2;
+    local result:4;
+
+    result = sext(C) - sext(data);
+    flag16_NZ(result);
+    CF = result s>= 0;
+}
+
+# EOR 8 bit.
+:EOR OP1    is (aaa=2 & is_m8=1) ... & OP1
+{
+    local data:1 = OP1:1;
+
+    A = A ^ data;
+    flag8_NZ(A);
+}
+
+# EOR 16 bit.
+:EOR OP1    is (aaa=2 & is_m8=0) ... & OP1
+{
+    local data:2 = OP1:2;
+
+    C = C ^ data;
+    flag16_NZ(C);
+}
+
+# LDA 8 bit.
+:LDA OP1    is (aaa=5 & is_m8=1) ... & OP1
+{
+    local data:1 = OP1:1;
+
+    A = data;
+    flag8_NZ(A);
+}
+
+# LDA 16 bit.
+:LDA OP1    is (aaa=5 & is_m8=0) ... & OP1
+{
+    local data:2 = OP1:2;
+
+    C = data;
+    flag16_NZ(C);
+}
+
+# ORA 8 bit.
+:ORA OP1    is (aaa=0 & is_m8=1) ... & OP1
+{
+    local data:1 = OP1:1;
+
+    A = A | data;
+    flag8_NZ(A);
+}
+
+# ORA 16 bit.
+:ORA OP1    is (aaa=0 & is_m8=0) ... & OP1
+{
+    local data:2 = OP1:2;
+
+    C = C | data;
+    flag16_NZ(C);
+}
+
+# SBC with decimal mode is unimplemented.
+:SBC OP1    is (aaa=7 & is_dec=1) ... & OP1  unimpl
+
+# SBC 8 bit binary.
+:SBC OP1    is (aaa=7 & is_dec=0 & is_m8=1) ... & OP1
+{
+    local data:1 = ~(OP1:1);
+    local result:4;
+
+    result = zext(A) + zext(data) + zext(CF);
+    VF = (~zext(A ^ data) & (zext(A) ^ result) & 0x80) != 0;
+    CF = result s> 0xFF;
+    flag8_NZ(result);
+
+    A = result:1;
+}
+
+# SBC 16 bit binary.
+:SBC OP1    is (aaa=7 & is_dec=0 & is_m8=0) ... & OP1
+{
+    local data:2 = ~(OP1:2);
+    local result:4;
+
+    result = zext(C) + zext(data) + zext(CF);
+    VF = (~zext(C ^ data) & (zext(C) ^ result) & 0x8000) != 0;
+    CF = result s> 0xFFFF;
+    flag16_NZ(result);
+
+    C = result:2;
+}
+
+# STA 8 bit.
+:STA OP1    is (aaa=4 & is_m8=1) ... & OP1
+{
+    # *:1 OP1 = A;
+    OP1:1 = A;
+}
+
+# STA 16 bit.
+:STA OP1    is (aaa=4 & is_m8=0) ... & OP1
+{
+    # *:2 OP1 = C;
+    OP1:2 = C;
+}

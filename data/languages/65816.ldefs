@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<language_definitions>
+
+  <language processor="65816"
+            endian="little"
+            size="16"
+            variant="default"
+            version="1.0"
+            slafile="65816.sla"
+            processorspec="65816.pspec"
+            id="65816:LE:16:default">
+    <description>65816 Microcontroller Family</description>
+    <compiler name="default" spec="65816.cspec" id="default"/>
+    <!-- <external_name tool="IDA-PRO" name="m6502"/> -->
+    <!-- <external_name tool="IDA-PRO" name="m65c02"/> -->
+  </language>
+
+  <!-- <language processor="65802"
+            endian="little"
+            size="16"
+            variant="default"
+            version="1.0"
+            slafile="65802.sla"
+            processorspec="65802.pspec"
+            id="65802:LE:16:default">
+    <description>65816 Microcontroller Family</description>
+    <compiler name="default" spec="65802.cspec" id="default"/>
+  </language> -->
+
+</language_definitions>
