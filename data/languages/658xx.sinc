@@ -17,25 +17,14 @@ define register offset=0x20  size=1  [ DBR ];
 
 # Status flags.
 define register offset=0x30  size=1  [ NF VF MF XF DF IF ZF CF EF ];
-
-
-#TOKENS
-
-define context MF
+define register offset=0x40  size=4  contextreg;
+define context contextreg
     is_m8=(0,0)
+    is_x8=(1,1)
+    is_dec=(2,2)
+    is_emu=(3,3)
 ;
 
-define context XF
-    is_x8=(0,0)
-;
-
-define context DF
-    is_dec=(0,0)
-;
-
-define context EF
-    is_emu=(0,0)
-;
 
 define token opbyte (8)
    op       = (0,7)
@@ -58,88 +47,94 @@ define token data24 (24)
     imm24 = (0,23)
 ;
 
-macro make_addr24(out, bank, addr16) {
-    local bank24:3 = zext(bank & 0xFF);
-    local addr24:3 = zext(addr16 & 0xFFFF);
+macro make_addr24(_out, _bank, _addr16) {
+    local bank8:1 = _bank;
+    local addr16:2 = _addr16;
+
+    local bank24:3 = zext(bank8);
+    local addr24:3 = zext(addr16);
     local result:3 = (bank24 << 16) | addr24;
-    out = result;
+    _out = result;
 }
 
-macro calculate_dp_addr24(out, offset8) {
+macro calculate_dp_addr24(_out, _offset8) {
+    local offset8:1 = _offset8;
     local result:3;
 
-    if (is_emu==1 && (DP:1 == 0)) goto <emu>;
+    if ((EF == 1) && ((DP & 0xFF) == 0)) goto <emu>;
     goto <not_emu>;
 
     <emu>
-    result = zext(offset8:1);
+    result = zext(offset8);
     goto <end>;
 
     <not_emu>
-    local offset16:2 = zext(offset8:1);
+    local offset16:2 = zext(offset8);
     # This is modulo 16 bits, always in bank 0.
     local addr16:2 = DP + offset16;
     result = zext(addr16);
 
     <end>
-    out = result;
+    _out = result;
 }
 
-macro calculate_dp_addr24_no_emu(out, offset8) {
+macro calculate_dp_addr24_no_emu(_out, _offset8) {
+    local offset8:1 = _offset8;
     local result:3;
 
-    local offset16:2 = zext(offset8:1);
+    local offset16:2 = zext(offset8);
     # This is modulo 16 bits.
     local addr16:2 = DP + offset16;
     result = zext(addr16);
 
-    out = result;
+    _out = result;
 }
 
-macro read16_dp_offset(out, offset8) {
+macro read16_dp_offset(_out, _offset8) {
+    local offset8:1 = _offset8;
+
     local addrLo:3;
-    calculate_dp_addr24(addrLo, offset8:1);
+    calculate_dp_addr24(addrLo, offset8);
     local addrHi:3;
-    calculate_dp_addr24(addrHi, offset8:1 + 1);
+    calculate_dp_addr24(addrHi, offset8 + 1);
 
     local lo:1 = *addrLo;
     local hi:1 = *addrHi;
     local value:2 = (zext(hi) << 8) | zext(lo);
-    out = value;
+    _out = value;
 }
 
-macro read24_dp_offset(out, offset8) {
+macro read24_dp_offset(_out, _offset8) {
+    local offset8:1 = _offset8;
+
     local addrLo:3;
-    calculate_dp_addr24(addrLo, offset8:1);
+    calculate_dp_addr24(addrLo, offset8);
     local addrHi:3;
-    calculate_dp_addr24(addrHi, offset8:1 + 1);
+    calculate_dp_addr24(addrHi, offset8 + 1);
     local addrBank:3;
-    calculate_dp_addr24(addrBank, offset8:1 + 2);
+    calculate_dp_addr24(addrBank, offset8 + 2);
 
     local lo:1 = *addrLo;
     local hi:1 = *addrHi;
     local bank:1 = *addrBank;
     local value:3 = (zext(bank) << 16) | (zext(hi) << 8) | zext(lo);
-    out = value;
+    _out = value;
 }
 
-macro flag8_NZ(acc) {
+macro flag8_NZ(_acc) {
+    local acc:1 = _acc;
+
     NF = (acc & 0x80) != 0;
-    ZF = acc:1 == 0;
+    ZF = acc == 0;
 }
 
-macro flag16_NZ(acc) {
+macro flag16_NZ(_acc) {
+    local acc:2 = _acc;
+
     NF = (acc & 0x8000) != 0;
-    ZF = acc:2 == 0;
+    ZF = acc == 0;
 }
 
-
-################################################################
-# Psuedo Instructions
-################################################################
-
-################################################################
-REL: reloc		is rel	[ reloc = inst_next + rel; ] { export *:2 reloc; }
 
 # Addressing modes for primary group instructions (ADC AND CMP EOR LDA ORA SBC STA).
 # TODO: deal with 65802/65816 in native/emulation modes?
@@ -164,15 +159,26 @@ REL: reloc		is rel	[ reloc = inst_next + rel; ] { export *:2 reloc; }
 
 # Absolute.
 # Always with DBR for the primary group instructions. No change when emulation mode.
-OP1_MAIN: !$imm16    is bbb=3 & cc=1; imm16  { local tmp:3; make_addr24(tmp, DBR, imm16); export *:2 tmp; }
+OP1_MAIN: !$imm16    is bbb=3 & cc=1; imm16  {
+    local tmp:3;
+    make_addr24(tmp, DBR, imm16);
+    export *:2 tmp;
+}
 
 # Absolute long.
 # No change when emulation mode, this does not exist on the 6502.
-OP1_MAIN: >$imm24    is bbb=3 & cc=3; imm24  { local tmp:3 = imm24; export *:2 tmp; }
+OP1_MAIN: >$imm24    is bbb=3 & cc=3; imm24  {
+    local tmp:3 = imm24;
+    export *:2 tmp;
+}
 
 # Direct page.
 # Emulation mode may cause offset to wrap.
-OP1_MAIN: <$imm8    is bbb=1 & cc=1; imm8  { local tmp:3; calculate_dp_addr24(tmp, imm8); export *:2 tmp; }
+OP1_MAIN: <$imm8    is bbb=1 & cc=1; imm8  {
+    local tmp:3;
+    calculate_dp_addr24(tmp, imm8);
+    export *:2 tmp;
+}
 
 # Direct page indirect.
 # No change when emulation mode, this does not exist on the 6502.
@@ -204,7 +210,7 @@ OP1_MAIN: !$imm16,X    is bbb=7 & cc=1; imm16  {
     make_addr24(base, DBR, imm16);
 
     local idx:2 = X;
-    if (!(is_x8 == 1)) goto <skip_idx8>;
+    if (XF == 0) goto <skip_idx8>;
     idx = zext(XLow);
     <skip_idx8>
 
@@ -218,7 +224,7 @@ OP1_MAIN: >$imm24,X    is bbb=7 & cc=3; imm24  {
     local base:3 = imm24;
 
     local idx:2 = X;
-    if (!(is_x8 == 1)) goto <skip_idx8>;
+    if (XF == 0) goto <skip_idx8>;
     idx = zext(XLow);
     <skip_idx8>
 
@@ -233,7 +239,7 @@ OP1_MAIN: !$imm16,Y    is bbb=6 & cc=1; imm16  {
     make_addr24(base, DBR, imm16);
 
     local idx:2 = Y;
-    if (!(is_x8 == 1) goto <skip_idx8>;
+    if (XF == 0) goto <skip_idx8>;
     idx = zext(YLow);
     <skip_idx8>
 
@@ -246,15 +252,17 @@ OP1_MAIN: !$imm16,Y    is bbb=6 & cc=1; imm16  {
 # TODO: check against higan.
 OP1_MAIN: $imm8,X    is bbb=5 & cc=1; imm8  {
     local idx:2 = X;
-    if (!(is_x8 == 1)) goto <skip_idx8>;
+    if (XF == 0) goto <skip_idx8>;
     idx = zext(XLow);
     <skip_idx8>
 
     # DP + imm8 + X, then set bank to 0.
-    local ea:3 = zext(DP + zext(imm8) + idx);
+    local imm8_1:1 = imm8;
+    local imm8_2:2 = zext(imm8_1);
+    local ea:3 = zext(DP + imm8_2 + idx);
 
     # Restrict to the zero page if emulation mode and DP=0.
-    if (!(is_emu==1 && DP == 0)) goto <skip_emu>;
+    if (!( (EF==1) && (DP == 0) )) goto <skip_emu>;
     ea = ea & 0xFF;
     <skip_emu>
 
@@ -266,12 +274,12 @@ OP1_MAIN: $imm8,X    is bbb=5 & cc=1; imm8  {
 # TODO: check against higan, use DP macro?
 OP1_MAIN: (<$imm8,X)    is bbb=0 & cc=1; imm8  {
     local idx:2 = X;
-    if (!(is_x8 == 1) goto <skip_idx8>;
+    if (XF == 0) goto <skip_idx8>;
     idx = zext(XLow);
     <skip_idx8>
 
     local ind:3;
-    if (!(is_emu==1)) goto <not_emu>;
+    if (EF == 0) goto <not_emu>;
 
     <emu>
     # When the offset exceeds 0xFF it wraps.
@@ -302,7 +310,7 @@ OP1_MAIN: ($imm8),Y    is bbb=4 & cc=1; imm8  {
     make_addr24(base_ea, DBR, ind);
 
     local idx:3 = zext(Y);
-    if (!(is_x8 == 1) goto <skip_idx8>;
+    if (XF == 0) goto <skip_idx8>;
     idx = zext(YLow);
     <skip_idx8>
 
@@ -316,7 +324,7 @@ OP1_MAIN: [$imm8],Y    is bbb=5 & cc=3; imm8  {
     read24_dp_offset(ind, imm8);
 
     local idx:3 = zext(Y);
-    if (!(is_x8 == 1) goto <skip_idx8>;
+    if (XF == 0) goto <skip_idx8>;
     idx = zext(YLow);
     <skip_idx8>
 
@@ -326,7 +334,10 @@ OP1_MAIN: [$imm8],Y    is bbb=5 & cc=3; imm8  {
 
 # Stack relative.
 OP1_MAIN: $imm8,S    is bbb=0 & cc=3; imm8  {
-    local addr16:2 = S + zext(imm8);
+    local imm8_1:1 = imm8;
+    local imm8_2:2 = zext(imm8_1);
+
+    local addr16:2 = S + imm8_2;
     local tmp:3;
     make_addr24(tmp, 0, addr16);
     export *:2 tmp;
@@ -334,7 +345,8 @@ OP1_MAIN: $imm8,S    is bbb=0 & cc=3; imm8  {
 
 # Stack relative indirect, indexed Y.
 OP1_MAIN: ($imm8,S),Y    is bbb=4 & cc=3; imm8  {
-    local stack_addr16:2 = S + zext(imm8);
+    local imm8_1:1 = imm8;
+    local stack_addr16:2 = S + zext(imm8_1);
 
     local ind_lo_addr:1;
     make_addr24(ind_lo_addr, 0, stack_addr16);
@@ -348,7 +360,7 @@ OP1_MAIN: ($imm8,S),Y    is bbb=4 & cc=3; imm8  {
     make_addr24(ea_base, DBR, ind);
 
     local idx:3 = zext(Y);
-    if (!(is_x8 == 1) goto <skip_idx8>;
+    if (XF == 0) goto <skip_idx8>;
     idx = zext(YLow);
     <skip_idx8>
 
@@ -358,7 +370,8 @@ OP1_MAIN: ($imm8,S),Y    is bbb=4 & cc=3; imm8  {
 
 # Immediate, accumulator, 8 bit mode.
 OP1_IMM_ACC: #$imm8    is bbb=2 & cc=1 & is_m8=1; imm8  {
-    local value:2 = zext(imm8);
+    local imm8_1:1 = imm8;
+    local value:2 = zext(imm8_1);
     export value;
 }
 
@@ -537,13 +550,13 @@ OP1: OP1_IMM_ACC  is OP1_IMM_ACC  { export OP1_IMM_ACC; }
 # STA 8 bit.
 :STA OP1    is (aaa=4 & is_m8=1) ... & OP1
 {
-    # *:1 OP1 = A;
-    OP1:1 = A;
+    *:1 OP1 = A;
+    # OP1:1 = A;
 }
 
 # STA 16 bit.
 :STA OP1    is (aaa=4 & is_m8=0) ... & OP1
 {
-    # *:2 OP1 = C;
-    OP1:2 = C;
+    *:2 OP1 = C;
+    # OP1:2 = C;
 }
