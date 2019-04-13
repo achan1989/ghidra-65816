@@ -205,7 +205,7 @@ OP1_MAIN: [$imm8]    is bbb=1 & cc=3; imm8  {
 
 # Absolute indexed X.
 # TODO don't think this is affected by emulation mode?
-OP1_MAIN: !$imm16,X    is bbb=7 & cc=1; imm16  {
+OP1_MAIN: !$imm16,"X"    is bbb=7 & cc=1; imm16  {
     local base:3;
     make_addr24(base, DBR, imm16);
 
@@ -220,7 +220,7 @@ OP1_MAIN: !$imm16,X    is bbb=7 & cc=1; imm16  {
 
 # Absolute long indexed X.
 # No change when emulation mode.
-OP1_MAIN: >$imm24,X    is bbb=7 & cc=3; imm24  {
+OP1_MAIN: >$imm24,"X"    is bbb=7 & cc=3; imm24  {
     local base:3 = imm24;
 
     local idx:2 = X;
@@ -234,7 +234,7 @@ OP1_MAIN: >$imm24,X    is bbb=7 & cc=3; imm24  {
 
 # Absolute indexed Y.
 # TODO don't think this is affected by emulation mode?
-OP1_MAIN: !$imm16,Y    is bbb=6 & cc=1; imm16  {
+OP1_MAIN: !$imm16,"Y"    is bbb=6 & cc=1; imm16  {
     local base:3;
     make_addr24(base, DBR, imm16);
 
@@ -250,7 +250,7 @@ OP1_MAIN: !$imm16,Y    is bbb=6 & cc=1; imm16  {
 # Direct page indexed X.
 # Emulation mode may restrict addresses to the zero page.
 # TODO: check against higan.
-OP1_MAIN: $imm8,X    is bbb=5 & cc=1; imm8  {
+OP1_MAIN: $imm8,"X"    is bbb=5 & cc=1; imm8  {
     local idx:2 = X;
     if (XF == 0) goto <skip_idx8>;
     idx = zext(XLow);
@@ -272,14 +272,17 @@ OP1_MAIN: $imm8,X    is bbb=5 & cc=1; imm8  {
 # Direct page indexed indirect X.
 # Emulation mode restricts indirection addresses to the direct page.
 # TODO: check against higan, use DP macro?
-OP1_MAIN: (<$imm8,X)    is bbb=0 & cc=1; imm8  {
+OP1_MAIN: (<$imm8,"X")    is bbb=0 & cc=1; imm8  {
     local idx:2 = X;
-    if (XF == 0) goto <skip_idx8>;
+    # For this constructor sleigh has decided that it can't infer the bool size for some reason...
+    local is_not_idx8:1 = XF == 0;
+    if (is_not_idx8) goto <skip_idx8>;
     idx = zext(XLow);
     <skip_idx8>
 
     local ind:3;
-    if (EF == 0) goto <not_emu>;
+    local is_not_emu:1 = EF == 0;
+    if (is_not_emu) goto <not_emu>;
 
     <emu>
     # When the offset exceeds 0xFF it wraps.
@@ -302,7 +305,7 @@ OP1_MAIN: (<$imm8,X)    is bbb=0 & cc=1; imm8  {
 # Direct page indirect, indexed Y.
 # "The array of memory accessible to the indirect indexed addressing mode can extend beyond the
 # current 64K data bank into the next 64K bank, if the index plus the array base exceeds $FFFF."
-OP1_MAIN: ($imm8),Y    is bbb=4 & cc=1; imm8  {
+OP1_MAIN: ($imm8),"Y"    is bbb=4 & cc=1; imm8  {
     local ind:2;
     read16_dp_offset(ind, imm8);
 
@@ -319,7 +322,7 @@ OP1_MAIN: ($imm8),Y    is bbb=4 & cc=1; imm8  {
 }
 
 # Direct page indirect long, indexed Y.
-OP1_MAIN: [$imm8],Y    is bbb=5 & cc=3; imm8  {
+OP1_MAIN: [$imm8],"Y"    is bbb=5 & cc=3; imm8  {
     local ind:3;
     read24_dp_offset(ind, imm8);
 
@@ -333,7 +336,7 @@ OP1_MAIN: [$imm8],Y    is bbb=5 & cc=3; imm8  {
 }
 
 # Stack relative.
-OP1_MAIN: $imm8,S    is bbb=0 & cc=3; imm8  {
+OP1_MAIN: $imm8,"S"    is bbb=0 & cc=3; imm8  {
     local imm8_1:1 = imm8;
     local imm8_2:2 = zext(imm8_1);
 
@@ -344,14 +347,14 @@ OP1_MAIN: $imm8,S    is bbb=0 & cc=3; imm8  {
 }
 
 # Stack relative indirect, indexed Y.
-OP1_MAIN: ($imm8,S),Y    is bbb=4 & cc=3; imm8  {
+OP1_MAIN: ($imm8,"S"),"Y"    is bbb=4 & cc=3; imm8  {
     local imm8_1:1 = imm8;
     local stack_addr16:2 = S + zext(imm8_1);
 
-    local ind_lo_addr:1;
+    local ind_lo_addr:3;
     make_addr24(ind_lo_addr, 0, stack_addr16);
     local ind_lo:1 = *ind_lo_addr;
-    local ind_hi_addr:1;
+    local ind_hi_addr:3;
     make_addr24(ind_hi_addr, 0, stack_addr16 + 1);
     local ind_hi:1 = *ind_hi_addr;
     local ind:2 = (zext(ind_hi) << 8) | zext(ind_lo);
@@ -403,9 +406,10 @@ OP1: OP1_IMM_ACC  is OP1_IMM_ACC  { export OP1_IMM_ACC; }
     result = zext(A) + zext(data) + zext(CF);
     VF = (~zext(A ^ data) & (zext(A) ^ result) & 0x80) != 0;
     CF = result s> 0xFF;
-    flag8_NZ(result);
 
-    A = result:1;
+    local result8:1 = result:1;
+    flag8_NZ(result8);
+    A = result8;
 }
 
 # ADC 16 bit binary.
@@ -417,9 +421,10 @@ OP1: OP1_IMM_ACC  is OP1_IMM_ACC  { export OP1_IMM_ACC; }
     result = zext(C) + zext(data) + zext(CF);
     VF = (~zext(C ^ data) & (zext(C) ^ result) & 0x8000) != 0;
     CF = result s> 0xFFFF;
-    flag16_NZ(result);
 
-    C = result:2;
+    local result16:2 = result:2;
+    flag16_NZ(result16);
+    C = result16;
 }
 
 # AND 8 bit.
@@ -447,7 +452,7 @@ OP1: OP1_IMM_ACC  is OP1_IMM_ACC  { export OP1_IMM_ACC; }
     local result:4;
 
     result = sext(A) - sext(data);
-    flag8_NZ(result);
+    flag8_NZ(result:1);
     CF = result s>= 0;
 }
 
@@ -458,7 +463,7 @@ OP1: OP1_IMM_ACC  is OP1_IMM_ACC  { export OP1_IMM_ACC; }
     local result:4;
 
     result = sext(C) - sext(data);
-    flag16_NZ(result);
+    flag16_NZ(result:2);
     CF = result s>= 0;
 }
 
@@ -528,9 +533,10 @@ OP1: OP1_IMM_ACC  is OP1_IMM_ACC  { export OP1_IMM_ACC; }
     result = zext(A) + zext(data) + zext(CF);
     VF = (~zext(A ^ data) & (zext(A) ^ result) & 0x80) != 0;
     CF = result s> 0xFF;
-    flag8_NZ(result);
 
-    A = result:1;
+    result8:1 = result:1;
+    flag8_NZ(result8);
+    A = result8;
 }
 
 # SBC 16 bit binary.
@@ -542,21 +548,20 @@ OP1: OP1_IMM_ACC  is OP1_IMM_ACC  { export OP1_IMM_ACC; }
     result = zext(C) + zext(data) + zext(CF);
     VF = (~zext(C ^ data) & (zext(C) ^ result) & 0x8000) != 0;
     CF = result s> 0xFFFF;
-    flag16_NZ(result);
 
-    C = result:2;
+    local result16:2 = result:2;
+    flag16_NZ(result16);
+    C = result16;
 }
 
 # STA 8 bit.
-:STA OP1    is (aaa=4 & is_m8=1) ... & OP1
+:STA OP1_NO_IMM    is (aaa=4 & is_m8=1) ... & OP1_NO_IMM
 {
-    *:1 OP1 = A;
-    # OP1:1 = A;
+    OP1_NO_IMM[0,8] = A;
 }
 
 # STA 16 bit.
-:STA OP1    is (aaa=4 & is_m8=0) ... & OP1
+:STA OP1_NO_IMM    is (aaa=4 & is_m8=0) ... & OP1_NO_IMM
 {
-    *:2 OP1 = C;
-    # OP1:2 = C;
+    OP1_NO_IMM = C;
 }
