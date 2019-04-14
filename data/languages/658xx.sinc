@@ -247,6 +247,11 @@ ADDR_ABS_IDX_Y: !$imm16,"Y"    is imm16  {
     export *:2 ea;
 }
 
+# Accumulator.
+ADDR_ACC: "A"    is epsilon  {
+    export *:2 C;
+}
+
 # Direct page indexed X.
 # Emulation mode may restrict addresses to the zero page.
 # TODO: check against higan.
@@ -497,6 +502,31 @@ SEC_OP_Y: ADDR_DP_IDX_Y    is bbb=5; ADDR_DP_IDX_Y  { export ADDR_DP_IDX_Y; }
 
     C = C & data;
     flag16_NZ(C);
+}
+
+ASL_OP: SEC_OP_X    is SEC_OP_X  { export SEC_OP_X; }
+ASL_OP: ADDR_ACC    is bbb=2; ADDR_ACC  { export ADDR_ACC; }
+
+# ASL 8 bit.
+:ASL ASL_OP    is (aaa=0 & cc=2 & is_m8=1) ... & ASL_OP
+{
+    local data:1 = ASL_OP:1;
+    local result:1 = data << 1;
+
+    ASL_OP[0,8] = result;
+    flag8_NZ(result);
+    CF = data[7,1];
+}
+
+# ASL 16 bit.
+:ASL ASL_OP    is (aaa=0 & cc=2 & is_m8=0) ... & ASL_OP
+{
+    local data:2 = ASL_OP;
+    local result:2 = data << 1;
+
+    ASL_OP = result;
+    flag16_NZ(result);
+    CF = data[15,1];
 }
 
 # CMP 8 bit.
