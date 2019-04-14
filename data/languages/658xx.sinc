@@ -121,18 +121,34 @@ macro read24_dp_offset(_out, _offset8) {
     _out = value;
 }
 
-macro flag8_NZ(_acc) {
+macro flag8_N(_acc) {
     local acc:1 = _acc;
-
     NF = (acc & 0x80) != 0;
+}
+
+macro flag8_Z(_acc) {
+    local acc:1 = _acc;
+    ZF = acc == 0;
+}
+
+macro flag8_NZ(_acc) {
+    flag8_N(_acc);
+    flag8_Z(_acc);
+}
+
+macro flag16_N(_acc) {
+    local acc:2 = _acc;
+    NF = (acc & 0x8000) != 0;
+}
+
+macro flag16_Z(_acc) {
+    local acc:2 = _acc;
     ZF = acc == 0;
 }
 
 macro flag16_NZ(_acc) {
-    local acc:2 = _acc;
-
-    NF = (acc & 0x8000) != 0;
-    ZF = acc == 0;
+    flag16_N(_acc);
+    flag16_Z(_acc);
 }
 
 
