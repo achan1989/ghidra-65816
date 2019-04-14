@@ -159,7 +159,7 @@ macro flag16_NZ(_acc) {
 
 # Absolute.
 # Always with DBR for the primary group instructions. No change when emulation mode.
-OP1_MAIN: !$imm16    is bbb=3 & cc=1; imm16  {
+ADDR_ABS: !$imm16    is imm16  {
     local tmp:3;
     make_addr24(tmp, DBR, imm16);
     export *:2 tmp;
@@ -167,14 +167,14 @@ OP1_MAIN: !$imm16    is bbb=3 & cc=1; imm16  {
 
 # Absolute long.
 # No change when emulation mode, this does not exist on the 6502.
-OP1_MAIN: >$imm24    is bbb=3 & cc=3; imm24  {
+ADDR_ABS_LONG: >$imm24    is imm24  {
     local tmp:3 = imm24;
     export *:2 tmp;
 }
 
 # Direct page.
 # Emulation mode may cause offset to wrap.
-OP1_MAIN: <$imm8    is bbb=1 & cc=1; imm8  {
+ADDR_DP: <$imm8    is imm8  {
     local tmp:3;
     calculate_dp_addr24(tmp, imm8);
     export *:2 tmp;
@@ -182,7 +182,7 @@ OP1_MAIN: <$imm8    is bbb=1 & cc=1; imm8  {
 
 # Direct page indirect.
 # No change when emulation mode, this does not exist on the 6502.
-OP1_MAIN: ($imm8)    is bbb=4 & cc=2; imm8  {
+ADDR_DP_IND: ($imm8)    is imm8  {
     local ind:3;
     calculate_dp_addr24_no_emu(ind, imm8);
 
@@ -195,7 +195,7 @@ OP1_MAIN: ($imm8)    is bbb=4 & cc=2; imm8  {
 
 # Direct page indirect long.
 # No change when emulation mode, this does not exist on the 6502.
-OP1_MAIN: [$imm8]    is bbb=1 & cc=3; imm8  {
+ADDR_DP_IND_LONG: [$imm8]    is imm8  {
     local ind:3;
     calculate_dp_addr24_no_emu(ind, imm8);
 
@@ -205,7 +205,7 @@ OP1_MAIN: [$imm8]    is bbb=1 & cc=3; imm8  {
 
 # Absolute indexed X.
 # TODO don't think this is affected by emulation mode?
-OP1_MAIN: !$imm16,"X"    is bbb=7 & cc=1; imm16  {
+ADDR_ABS_IDX_X: !$imm16,"X"    is imm16  {
     local base:3;
     make_addr24(base, DBR, imm16);
 
@@ -220,7 +220,7 @@ OP1_MAIN: !$imm16,"X"    is bbb=7 & cc=1; imm16  {
 
 # Absolute long indexed X.
 # No change when emulation mode.
-OP1_MAIN: >$imm24,"X"    is bbb=7 & cc=3; imm24  {
+ADDR_ABS_LONG_IND_X: >$imm24,"X"    is imm24  {
     local base:3 = imm24;
 
     local idx:2 = X;
@@ -234,7 +234,7 @@ OP1_MAIN: >$imm24,"X"    is bbb=7 & cc=3; imm24  {
 
 # Absolute indexed Y.
 # TODO don't think this is affected by emulation mode?
-OP1_MAIN: !$imm16,"Y"    is bbb=6 & cc=1; imm16  {
+ADDR_ABS_IDX_Y: !$imm16,"Y"    is imm16  {
     local base:3;
     make_addr24(base, DBR, imm16);
 
@@ -250,7 +250,7 @@ OP1_MAIN: !$imm16,"Y"    is bbb=6 & cc=1; imm16  {
 # Direct page indexed X.
 # Emulation mode may restrict addresses to the zero page.
 # TODO: check against higan.
-OP1_MAIN: $imm8,"X"    is bbb=5 & cc=1; imm8  {
+ADDR_DP_IDX_X: $imm8,"X"    is imm8  {
     local idx:2 = X;
     if (XF == 0) goto <skip_idx8>;
     idx = zext(XLow);
@@ -272,7 +272,7 @@ OP1_MAIN: $imm8,"X"    is bbb=5 & cc=1; imm8  {
 # Direct page indexed indirect X.
 # Emulation mode restricts indirection addresses to the direct page.
 # TODO: check against higan, use DP macro?
-OP1_MAIN: (<$imm8,"X")    is bbb=0 & cc=1; imm8  {
+ADDR_DP_IDX_X_IND: (<$imm8,"X")    is imm8  {
     local idx:2 = X;
     # For this constructor sleigh has decided that it can't infer the bool size for some reason...
     local is_not_idx8:1 = XF == 0;
@@ -305,7 +305,7 @@ OP1_MAIN: (<$imm8,"X")    is bbb=0 & cc=1; imm8  {
 # Direct page indirect, indexed Y.
 # "The array of memory accessible to the indirect indexed addressing mode can extend beyond the
 # current 64K data bank into the next 64K bank, if the index plus the array base exceeds $FFFF."
-OP1_MAIN: ($imm8),"Y"    is bbb=4 & cc=1; imm8  {
+ADDR_DP_IND_IDX_Y: ($imm8),"Y"    is imm8  {
     local ind:2;
     read16_dp_offset(ind, imm8);
 
@@ -322,7 +322,7 @@ OP1_MAIN: ($imm8),"Y"    is bbb=4 & cc=1; imm8  {
 }
 
 # Direct page indirect long, indexed Y.
-OP1_MAIN: [$imm8],"Y"    is bbb=5 & cc=3; imm8  {
+ADDR_DP_IND_LONG_IDX_Y: [$imm8],"Y"    is imm8  {
     local ind:3;
     read24_dp_offset(ind, imm8);
 
@@ -336,7 +336,7 @@ OP1_MAIN: [$imm8],"Y"    is bbb=5 & cc=3; imm8  {
 }
 
 # Stack relative.
-OP1_MAIN: $imm8,"S"    is bbb=0 & cc=3; imm8  {
+ADDR_SR: $imm8,"S"    is imm8  {
     local imm8_1:1 = imm8;
     local imm8_2:2 = zext(imm8_1);
 
@@ -347,7 +347,7 @@ OP1_MAIN: $imm8,"S"    is bbb=0 & cc=3; imm8  {
 }
 
 # Stack relative indirect, indexed Y.
-OP1_MAIN: ($imm8,"S"),"Y"    is bbb=4 & cc=3; imm8  {
+ADDR_SR_IND_IDX_Y: ($imm8,"S"),"Y"    is imm8  {
     local imm8_1:1 = imm8;
     local stack_addr16:2 = S + zext(imm8_1);
 
@@ -371,36 +371,54 @@ OP1_MAIN: ($imm8,"S"),"Y"    is bbb=4 & cc=3; imm8  {
     export *:2 ea;
 }
 
-# Immediate, accumulator, 8 bit mode.
-OP1_IMM_ACC: #$imm8    is bbb=2 & cc=1 & is_m8=1; imm8  {
+# Immediate, 8 bit mode.
+ADDR_IMM: #$imm8    is is_m8=1; imm8  {
     local imm8_1:1 = imm8;
     local value:2 = zext(imm8_1);
     export value;
 }
 
-# Immediate, accumulator, 16 bit mode.
-OP1_IMM_ACC: #$imm16    is bbb=2 & cc=1 & is_m8=0; imm16  {
+# Immediate, 16 bit mode.
+ADDR_IMM: #$imm16    is is_m8=0; imm16  {
     local value:2 = imm16;
     export value;
 }
 
-# Two subsets of the addressing modes for the primary group instructions.
-# OP1 is all of them.
-# OP1_NO_IMM is all of them except the immediate (can't store to an immediate).
-OP1_NO_IMM: OP1_MAIN  is OP1_MAIN  { export OP1_MAIN; }
-OP1: OP1_MAIN  is OP1_MAIN  { export OP1_MAIN; }
-OP1: OP1_IMM_ACC  is OP1_IMM_ACC  { export OP1_IMM_ACC; }
+# Two subsets of the addressing modes for the primary group instructions
+# (ADC, AND, CMP, EOR, LDA, ORA, SBC, STA).
+#
+# PRIMARY_OP_NO_IMM is the whole subset except for ADDR_IMM (can't STA to an immediate).
+#
+PRIMARY_OP_NO_IMM: ADDR_ABS    is bbb=3 & cc=1; ADDR_ABS  { export ADDR_ABS; }
+PRIMARY_OP_NO_IMM: ADDR_ABS_LONG    is bbb=3 & cc=3; ADDR_ABS_LONG  { export ADDR_ABS_LONG; }
+PRIMARY_OP_NO_IMM: ADDR_DP    is bbb=1 & cc=1; ADDR_DP  { export ADDR_DP; }
+PRIMARY_OP_NO_IMM: ADDR_DP_IND    is bbb=4 & cc=2; ADDR_DP_IND  { export ADDR_DP_IND; }
+PRIMARY_OP_NO_IMM: ADDR_DP_IND_LONG    is bbb=1 & cc=3; ADDR_DP_IND_LONG  { export ADDR_DP_IND_LONG; }
+PRIMARY_OP_NO_IMM: ADDR_ABS_IDX_X    is bbb=7 & cc=1; ADDR_ABS_IDX_X  { export ADDR_ABS_IDX_X; }
+PRIMARY_OP_NO_IMM: ADDR_ABS_LONG_IND_X    is bbb=7 & cc=3; ADDR_ABS_LONG_IND_X  { export ADDR_ABS_LONG_IND_X; }
+PRIMARY_OP_NO_IMM: ADDR_ABS_IDX_Y    is bbb=6 & cc=1; ADDR_ABS_IDX_Y  { export ADDR_ABS_IDX_Y; }
+PRIMARY_OP_NO_IMM: ADDR_DP_IDX_X    is bbb=5 & cc=1; ADDR_DP_IDX_X  { export ADDR_DP_IDX_X; }
+PRIMARY_OP_NO_IMM: ADDR_DP_IDX_X_IND    is bbb=0 & cc=1; ADDR_DP_IDX_X_IND  { export ADDR_DP_IDX_X_IND; }
+PRIMARY_OP_NO_IMM: ADDR_DP_IND_IDX_Y    is bbb=4 & cc=1; ADDR_DP_IND_IDX_Y  { export ADDR_DP_IND_IDX_Y; }
+PRIMARY_OP_NO_IMM: ADDR_DP_IND_LONG_IDX_Y    is bbb=5 & cc=3; ADDR_DP_IND_LONG_IDX_Y  { export ADDR_DP_IND_LONG_IDX_Y; }
+PRIMARY_OP_NO_IMM: ADDR_SR    is bbb=0 & cc=3; ADDR_SR  { export ADDR_SR; }
+PRIMARY_OP_NO_IMM: ADDR_SR_IND_IDX_Y    is bbb=4 & cc=3; ADDR_SR_IND_IDX_Y  { export ADDR_SR_IND_IDX_Y; }
+#
+# PRIMARY_OP is the whole subset.
+#
+PRIMARY_OP: PRIMARY_OP_NO_IMM    is PRIMARY_OP_NO_IMM  { export PRIMARY_OP_NO_IMM; }
+PRIMARY_OP: ADDR_IMM    is bbb=2 & cc=1; ADDR_IMM  { export ADDR_IMM; }
 
 
 # Begin instructions.
 
 # ADC with decimal mode is unimplemented.
-:ADC OP1    is (aaa=3 & is_dec=1) ... & OP1  unimpl
+:ADC PRIMARY_OP    is (aaa=3 & is_dec=1) ... & PRIMARY_OP  unimpl
 
 # ADC 8 bit binary.
-:ADC OP1    is (aaa=3 & is_dec=0 & is_m8=1) ... & OP1
+:ADC PRIMARY_OP    is (aaa=3 & is_dec=0 & is_m8=1) ... & PRIMARY_OP
 {
-    local data:1 = OP1:1;
+    local data:1 = PRIMARY_OP:1;
     local result:4;
 
     result = zext(A) + zext(data) + zext(CF);
@@ -413,9 +431,9 @@ OP1: OP1_IMM_ACC  is OP1_IMM_ACC  { export OP1_IMM_ACC; }
 }
 
 # ADC 16 bit binary.
-:ADC OP1    is (aaa=3 & is_dec=0 & is_m8=0) ... & OP1
+:ADC PRIMARY_OP    is (aaa=3 & is_dec=0 & is_m8=0) ... & PRIMARY_OP
 {
-    local data:2 = OP1:2;
+    local data:2 = PRIMARY_OP:2;
     local result:4;
 
     result = zext(C) + zext(data) + zext(CF);
@@ -428,27 +446,27 @@ OP1: OP1_IMM_ACC  is OP1_IMM_ACC  { export OP1_IMM_ACC; }
 }
 
 # AND 8 bit.
-:AND OP1    is (aaa=1 & is_m8=1) ... & OP1
+:AND PRIMARY_OP    is (aaa=1 & is_m8=1) ... & PRIMARY_OP
 {
-    local data:1 = OP1:1;
+    local data:1 = PRIMARY_OP:1;
 
     A = A & data;
     flag8_NZ(A);
 }
 
 # AND 16 bit.
-:AND OP1    is (aaa=1 & is_m8=0) ... & OP1
+:AND PRIMARY_OP    is (aaa=1 & is_m8=0) ... & PRIMARY_OP
 {
-    local data:2 = OP1:2;
+    local data:2 = PRIMARY_OP:2;
 
     C = C & data;
     flag16_NZ(C);
 }
 
 # CMP 8 bit.
-:CMP OP1    is (aaa=6 & is_m8=1) ... & OP1
+:CMP PRIMARY_OP    is (aaa=6 & is_m8=1) ... & PRIMARY_OP
 {
-    local data:1 = OP1:1;
+    local data:1 = PRIMARY_OP:1;
     local result:4;
 
     result = sext(A) - sext(data);
@@ -457,9 +475,9 @@ OP1: OP1_IMM_ACC  is OP1_IMM_ACC  { export OP1_IMM_ACC; }
 }
 
 # CMP 16 bit.
-:CMP OP1    is (aaa=6 & is_m8=0) ... & OP1
+:CMP PRIMARY_OP    is (aaa=6 & is_m8=0) ... & PRIMARY_OP
 {
-    local data:2 = OP1:2;
+    local data:2 = PRIMARY_OP:2;
     local result:4;
 
     result = sext(C) - sext(data);
@@ -468,66 +486,66 @@ OP1: OP1_IMM_ACC  is OP1_IMM_ACC  { export OP1_IMM_ACC; }
 }
 
 # EOR 8 bit.
-:EOR OP1    is (aaa=2 & is_m8=1) ... & OP1
+:EOR PRIMARY_OP    is (aaa=2 & is_m8=1) ... & PRIMARY_OP
 {
-    local data:1 = OP1:1;
+    local data:1 = PRIMARY_OP:1;
 
     A = A ^ data;
     flag8_NZ(A);
 }
 
 # EOR 16 bit.
-:EOR OP1    is (aaa=2 & is_m8=0) ... & OP1
+:EOR PRIMARY_OP    is (aaa=2 & is_m8=0) ... & PRIMARY_OP
 {
-    local data:2 = OP1:2;
+    local data:2 = PRIMARY_OP:2;
 
     C = C ^ data;
     flag16_NZ(C);
 }
 
 # LDA 8 bit.
-:LDA OP1    is (aaa=5 & is_m8=1) ... & OP1
+:LDA PRIMARY_OP    is (aaa=5 & is_m8=1) ... & PRIMARY_OP
 {
-    local data:1 = OP1:1;
+    local data:1 = PRIMARY_OP:1;
 
     A = data;
     flag8_NZ(A);
 }
 
 # LDA 16 bit.
-:LDA OP1    is (aaa=5 & is_m8=0) ... & OP1
+:LDA PRIMARY_OP    is (aaa=5 & is_m8=0) ... & PRIMARY_OP
 {
-    local data:2 = OP1:2;
+    local data:2 = PRIMARY_OP:2;
 
     C = data;
     flag16_NZ(C);
 }
 
 # ORA 8 bit.
-:ORA OP1    is (aaa=0 & is_m8=1) ... & OP1
+:ORA PRIMARY_OP    is (aaa=0 & is_m8=1) ... & PRIMARY_OP
 {
-    local data:1 = OP1:1;
+    local data:1 = PRIMARY_OP:1;
 
     A = A | data;
     flag8_NZ(A);
 }
 
 # ORA 16 bit.
-:ORA OP1    is (aaa=0 & is_m8=0) ... & OP1
+:ORA PRIMARY_OP    is (aaa=0 & is_m8=0) ... & PRIMARY_OP
 {
-    local data:2 = OP1:2;
+    local data:2 = PRIMARY_OP:2;
 
     C = C | data;
     flag16_NZ(C);
 }
 
 # SBC with decimal mode is unimplemented.
-:SBC OP1    is (aaa=7 & is_dec=1) ... & OP1  unimpl
+:SBC PRIMARY_OP    is (aaa=7 & is_dec=1) ... & PRIMARY_OP  unimpl
 
 # SBC 8 bit binary.
-:SBC OP1    is (aaa=7 & is_dec=0 & is_m8=1) ... & OP1
+:SBC PRIMARY_OP    is (aaa=7 & is_dec=0 & is_m8=1) ... & PRIMARY_OP
 {
-    local data:1 = ~(OP1:1);
+    local data:1 = ~(PRIMARY_OP:1);
     local result:4;
 
     result = zext(A) + zext(data) + zext(CF);
@@ -540,9 +558,9 @@ OP1: OP1_IMM_ACC  is OP1_IMM_ACC  { export OP1_IMM_ACC; }
 }
 
 # SBC 16 bit binary.
-:SBC OP1    is (aaa=7 & is_dec=0 & is_m8=0) ... & OP1
+:SBC PRIMARY_OP    is (aaa=7 & is_dec=0 & is_m8=0) ... & PRIMARY_OP
 {
-    local data:2 = ~(OP1:2);
+    local data:2 = ~(PRIMARY_OP:2);
     local result:4;
 
     result = zext(C) + zext(data) + zext(CF);
@@ -555,13 +573,13 @@ OP1: OP1_IMM_ACC  is OP1_IMM_ACC  { export OP1_IMM_ACC; }
 }
 
 # STA 8 bit.
-:STA OP1_NO_IMM    is (aaa=4 & is_m8=1) ... & OP1_NO_IMM
+:STA PRIMARY_OP_NO_IMM    is (aaa=4 & is_m8=1) ... & PRIMARY_OP_NO_IMM
 {
-    OP1_NO_IMM[0,8] = A;
+    PRIMARY_OP_NO_IMM[0,8] = A;
 }
 
 # STA 16 bit.
-:STA OP1_NO_IMM    is (aaa=4 & is_m8=0) ... & OP1_NO_IMM
+:STA PRIMARY_OP_NO_IMM    is (aaa=4 & is_m8=0) ... & PRIMARY_OP_NO_IMM
 {
-    OP1_NO_IMM = C;
+    PRIMARY_OP_NO_IMM = C;
 }
