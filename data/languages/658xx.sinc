@@ -269,6 +269,28 @@ ADDR_DP_IDX_X: $imm8,"X"    is imm8  {
     export *:2 ea;
 }
 
+# Direct page indexed Y.
+# Emulation mode may restrict addresses to the zero page.
+# TODO: check against higan.
+ADDR_DP_IDX_Y: $imm8,"Y"    is imm8  {
+    local idx:2 = Y;
+    if (XF == 0) goto <skip_idx8>;
+    idx = zext(YLow);
+    <skip_idx8>
+
+    # DP + imm8 + Y, then set bank to 0.
+    local imm8_1:1 = imm8;
+    local imm8_2:2 = zext(imm8_1);
+    local ea:3 = zext(DP + imm8_2 + idx);
+
+    # Restrict to the zero page if emulation mode and DP=0.
+    if (!( (EF==1) && (DP == 0) )) goto <skip_emu>;
+    ea = ea & 0xFF;
+    <skip_emu>
+
+    export *:2 ea;
+}
+
 # Direct page indexed indirect X.
 # Emulation mode restricts indirection addresses to the direct page.
 # TODO: check against higan, use DP macro?
@@ -408,6 +430,20 @@ PRIMARY_OP_NO_IMM: ADDR_SR_IND_IDX_Y    is bbb=4 & cc=3; ADDR_SR_IND_IDX_Y  { ex
 #
 PRIMARY_OP: PRIMARY_OP_NO_IMM    is PRIMARY_OP_NO_IMM  { export PRIMARY_OP_NO_IMM; }
 PRIMARY_OP: ADDR_IMM    is bbb=2 & cc=1; ADDR_IMM  { export ADDR_IMM; }
+
+# Subsets of the addressing modes for some secondary instructions (most of the remaining
+# instructions that aren't branches/jumps and don't use implied addressing).
+#
+SEC_OP_COMMON: ADDR_ABS    is bbb=3; ADDR_ABS  { export ADDR_ABS; }
+SEC_OP_COMMON: ADDR_DP    is bbb=1; ADDR_DP  { export ADDR_DP; }
+#
+SEC_OP_X: SEC_OP_COMMON    is SEC_OP_COMMON  { export SEC_OP_COMMON; }
+SEC_OP_X: ADDR_ABS_IDX_X    is bbb=7; ADDR_ABS_IDX_X  { export ADDR_ABS_IDX_X; }
+SEC_OP_X: ADDR_DP_IDX_X    is bbb=5; ADDR_DP_IDX_X  { export ADDR_DP_IDX_X; }
+#
+SEC_OP_Y: SEC_OP_COMMON    is SEC_OP_COMMON  { export SEC_OP_COMMON; }
+SEC_OP_Y: ADDR_ABS_IDX_Y    is bbb=7; ADDR_ABS_IDX_Y  { export ADDR_ABS_IDX_Y; }
+SEC_OP_Y: ADDR_DP_IDX_Y    is bbb=5; ADDR_DP_IDX_Y  { export ADDR_DP_IDX_Y; }
 
 
 # Begin instructions.
