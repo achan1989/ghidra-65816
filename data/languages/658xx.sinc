@@ -545,6 +545,39 @@ ASL_OP: ADDR_ACC    is bbb=2; ADDR_ACC  { export ADDR_ACC; }
     CF = data[15,1];
 }
 
+BIT_OP: SEC_OP_X    is (aaa=1 & cc=0) ... & SEC_OP_X  { export SEC_OP_X; }
+BIT_OP: ADDR_IMM    is op=0x89; ADDR_IMM  { export ADDR_IMM; }
+
+# BIT 8 bit.
+:BIT BIT_OP    is (is_m8=1 & (op=0x89 | op=0x2c | op=0x24 | op=0x3c | op=0x34) & op) ... & BIT_OP
+{
+    local data:1 = BIT_OP:1;
+    local is_immediate:1 = op:1 == 0x89;
+
+    if (is_immediate) goto <skip_flags>;
+    flag8_N(data);
+    VF = (data & 0x40) != 0;
+
+    <skip_flags>
+    local result:1 = A & data;
+    flag8_Z(result);
+}
+
+# BIT 16 bit.
+:BIT BIT_OP    is (is_m8=0 & (op=0x89 | op=0x2c | op=0x24 | op=0x3c | op=0x34) & op) ... & BIT_OP
+{
+    local data:2 = BIT_OP:2;
+    local is_immediate:1 = op:1 == 0x89;
+
+    if (is_immediate) goto <skip_flags>;
+    flag16_N(data);
+    VF = (data & 0x4000) != 0;
+
+    <skip_flags>
+    local result:2 = C & data;
+    flag16_Z(result);
+}
+
 # CMP 8 bit.
 :CMP PRIMARY_OP    is (aaa=6 & is_m8=1) ... & PRIMARY_OP
 {
