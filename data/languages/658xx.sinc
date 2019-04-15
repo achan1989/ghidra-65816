@@ -661,6 +661,34 @@ BIT_OP: ADDR_IMM    is op=0x89; ADDR_IMM  { export ADDR_IMM; }
     flag16_Z(result);
 }
 
+:BRK    is op=0x00 & is_emu
+{
+    local pc_inc:2 = PC + 2;
+    local target:3;
+    local is_emulation:1 = is_emu == 1;
+    if (is_emulation) goto <do_emulation>;
+
+    <do_native>
+    push8(PBR);
+    push16(pc_inc);
+    push_status_native();
+    IF = 1;
+    DF = 0;
+    PBR = 0;
+    target = zext(*:2 0x00FFE6:3);
+    goto <end>;
+
+    <do_emulation>
+    push16(pc_inc);
+    local save_bf:1 = BF;  BF = 1;  push_status_emulation();  BF = save_bf;
+    IF = 1;
+    DF = 0;
+    target = zext(*:2 0x00FFFE:3);
+
+    <end>
+    call [target];
+}
+
 # CMP 8 bit.
 :CMP PRIMARY_OP    is (aaa=6 & is_m8=1) ... & PRIMARY_OP
 {
