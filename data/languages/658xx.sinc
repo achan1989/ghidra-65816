@@ -11,12 +11,13 @@ define register offset=0x00  size=3  [ PC_FULL ];
 define register offset=0x00  size=2  [ PC ];
 define register offset=0x02  size=1  [ PBR ];
 
-define register offset=0x10  size=2  [ C   X      Y      DP  S ];
+define register offset=0x10  size=2  [ C   X      Y      DP  SP ];
 define register offset=0x10  size=1  [ A B XLow _ YLow _ _ _ _ _ ];
 define register offset=0x20  size=1  [ DBR ];
 
 # Status flags.
-define register offset=0x30  size=1  [ NF VF MF XF DF IF ZF CF EF ];
+# TODO: remove MF, XF, DF, EF flags, then rename and use context?
+define register offset=0x30  size=1  [ NF VF MF XF DF IF ZF CF EF BF ];
 define register offset=0x40  size=4  contextreg;
 define context contextreg
     is_m8=(0,0)
@@ -383,7 +384,7 @@ ADDR_SR: $imm8,"S"    is imm8  {
     local imm8_1:1 = imm8;
     local imm8_2:2 = zext(imm8_1);
 
-    local addr16:2 = S + imm8_2;
+    local addr16:2 = SP + imm8_2;
     local tmp:3;
     make_addr24(tmp, 0, addr16);
     export *:2 tmp;
@@ -392,7 +393,7 @@ ADDR_SR: $imm8,"S"    is imm8  {
 # Stack relative indirect, indexed Y.
 ADDR_SR_IND_IDX_Y: ($imm8,"S"),"Y"    is imm8  {
     local imm8_1:1 = imm8;
-    local stack_addr16:2 = S + zext(imm8_1);
+    local stack_addr16:2 = SP + zext(imm8_1);
 
     local ind_lo_addr:3;
     make_addr24(ind_lo_addr, 0, stack_addr16);
