@@ -152,6 +152,88 @@ macro flag16_NZ(_acc) {
     flag16_Z(_acc);
 }
 
+macro push8(_val8) {
+    local value:1 = _val8;
+    *:1 SP = value;
+    SP = SP - 1;
+}
+
+macro push16(_val16) {
+    local value:2 = _val16;
+    # High byte.
+    *:1 SP = value(1);
+    SP = SP - 1;
+    # Low byte.
+    *:1 SP = value:1;
+    SP = SP - 1;
+}
+
+macro pull8(var8) {
+    SP = SP + 1;
+    var8 = *:1 SP;
+}
+
+macro pull16(var16) {
+    # Low byte.
+    SP = SP + 1;
+    var16[0,8] = *:1 SP;
+    # High byte.
+    SP = SP + 1;
+    var16[8,8] = *:1 SP;
+}
+
+macro push_status_native() {
+    local status:1;
+    status[7,1] = NF;
+    status[6,1] = VF;
+    status[5,1] = MF;
+    status[4,1] = XF;
+    status[3,1] = DF;
+    status[2,1] = IF;
+    status[1,1] = ZF;
+    status[0,1] = CF;
+    push8(status);
+}
+
+macro push_status_emulation() {
+    local status:1 = 0;
+    status[7,1] = NF;
+    status[6,1] = VF;
+    # bit 5 unused
+    status[4,1] = BF;
+    status[3,1] = DF;
+    status[2,1] = IF;
+    status[1,1] = ZF;
+    status[0,1] = CF;
+    push8(status);
+}
+
+macro pull_status_native() {
+    local status:1;
+    pull8(status);
+    NF = status[7,1];
+    VF = status[6,1];
+    MF = status[5,1];
+    XF = status[4,1];
+    DF = status[3,1];
+    IF = status[2,1];
+    ZF = status[1,1];
+    CF = status[0,1];
+}
+
+macro pull_status_emulation() {
+    local status:1;
+    pull8(status);
+    NF = status[7,1];
+    VF = status[6,1];
+    # bit 5 unused
+    BF = status[4,1];
+    DF = status[3,1];
+    IF = status[2,1];
+    ZF = status[1,1];
+    CF = status[0,1];
+}
+
 
 # Addressing modes for primary group instructions (ADC AND CMP EOR LDA ORA SBC STA).
 # TODO: deal with 65802/65816 in native/emulation modes?
