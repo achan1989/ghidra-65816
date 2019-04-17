@@ -689,6 +689,26 @@ BIT_OP: ADDR_IMM    is op=0x89; ADDR_IMM  { export ADDR_IMM; }
     call [target];
 }
 
+:CLC    is op=0x18
+{
+    CF = 0;
+}
+
+:CLD    is op=0xD8
+{
+    DF = 0;
+}
+
+:CLI    is op=0x58
+{
+    IF = 0;
+}
+
+:CLV    is op=0xB8
+{
+    VF = 0;
+}
+
 # CMP 8 bit.
 :CMP PRIMARY_OP    is (aaa=6 & is_m8=1) ... & PRIMARY_OP
 {
