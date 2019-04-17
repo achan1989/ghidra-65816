@@ -821,6 +821,38 @@ DEC_OP: ADDR_ACC    is (aaa=1) ... & ADDR_ACC  { export ADDR_ACC; }
     DEC_OP = result;
 }
 
+# DEX 8 bit.
+:DEX    is (is_m8=1 & op=0xca)
+{
+    local result:1 = XLow - 1;
+    flag8_NZ(result);
+    XLow = result;
+}
+
+# DEX 16 bit.
+:DEX    is (is_m8=0 & op=0xca)
+{
+    local result:2 = X - 1;
+    flag16_NZ(result);
+    X = result;
+}
+
+# DEY 8 bit.
+:DEY    is (is_m8=1 & op=0x88)
+{
+    local result:1 = YLow - 1;
+    flag8_NZ(result);
+    YLow = result;
+}
+
+# DEY 16 bit.
+:DEY    is (is_m8=0 & op=0x88)
+{
+    local result:2 = Y - 1;
+    flag16_NZ(result);
+    Y = result;
+}
+
 # EOR 8 bit.
 :EOR PRIMARY_OP    is (is_m8=1 &
     (op=0x49 | op=0x4d | op=0x4f | op=0x45 | op=0x52 | op=0x47 | op=0x5d |
