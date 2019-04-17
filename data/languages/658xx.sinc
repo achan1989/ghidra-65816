@@ -607,7 +607,8 @@ ASL_OP: SEC_OP_X    is SEC_OP_X  { export SEC_OP_X; }
 ASL_OP: ADDR_ACC    is bbb=2; ADDR_ACC  { export ADDR_ACC; }
 
 # ASL 8 bit.
-:ASL ASL_OP    is (aaa=0 & cc=2 & is_m8=1) ... & ASL_OP
+:ASL ASL_OP    is (is_m8=1 &
+    (op=0x0a | op=0x0e | op=0x06 | op=0x1e | op=0x16)) ... & ASL_OP
 {
     local data:1 = ASL_OP:1;
     local result:1 = data << 1;
@@ -618,7 +619,8 @@ ASL_OP: ADDR_ACC    is bbb=2; ADDR_ACC  { export ADDR_ACC; }
 }
 
 # ASL 16 bit.
-:ASL ASL_OP    is (aaa=0 & cc=2 & is_m8=0) ... & ASL_OP
+:ASL ASL_OP    is (is_m8=0 &
+    (op=0x0a | op=0x0e | op=0x06 | op=0x1e | op=0x16)) ... & ASL_OP
 {
     local data:2 = ASL_OP;
     local result:2 = data << 1;
@@ -632,7 +634,8 @@ BIT_OP: SEC_OP_X    is (aaa=1 & cc=0) ... & SEC_OP_X  { export SEC_OP_X; }
 BIT_OP: ADDR_IMM    is op=0x89; ADDR_IMM  { export ADDR_IMM; }
 
 # BIT 8 bit.
-:BIT BIT_OP    is (is_m8=1 & (op=0x89 | op=0x2c | op=0x24 | op=0x3c | op=0x34) & op) ... & BIT_OP
+:BIT BIT_OP    is (is_m8=1 &
+    (op=0x89 | op=0x2c | op=0x24 | op=0x3c | op=0x34) & op) ... & BIT_OP
 {
     local data:1 = BIT_OP:1;
     local is_immediate:1 = op:1 == 0x89;
@@ -647,7 +650,8 @@ BIT_OP: ADDR_IMM    is op=0x89; ADDR_IMM  { export ADDR_IMM; }
 }
 
 # BIT 16 bit.
-:BIT BIT_OP    is (is_m8=0 & (op=0x89 | op=0x2c | op=0x24 | op=0x3c | op=0x34) & op) ... & BIT_OP
+:BIT BIT_OP    is (is_m8=0 &
+    (op=0x89 | op=0x2c | op=0x24 | op=0x3c | op=0x34) & op) ... & BIT_OP
 {
     local data:2 = BIT_OP:2;
     local is_immediate:1 = op:1 == 0x89;
@@ -710,7 +714,10 @@ BIT_OP: ADDR_IMM    is op=0x89; ADDR_IMM  { export ADDR_IMM; }
 }
 
 # CMP 8 bit.
-:CMP PRIMARY_OP    is (aaa=6 & is_m8=1) ... & PRIMARY_OP
+:CMP PRIMARY_OP    is (is_m8=1 &
+    (op=0xc9 | op=0xcd | op=0xcf | op=0xc5 | op=0xd2 | op=0xc7 | op=0xdd |
+     op=0xdf | op=0xd9 | op=0xd5 | op=0xc1 | op=0xd1 | op=0xd7 | op=0xc3 |
+     op=0xd3)) ... & PRIMARY_OP
 {
     local data:1 = PRIMARY_OP:1;
     local result:4;
@@ -721,7 +728,10 @@ BIT_OP: ADDR_IMM    is op=0x89; ADDR_IMM  { export ADDR_IMM; }
 }
 
 # CMP 16 bit.
-:CMP PRIMARY_OP    is (aaa=6 & is_m8=0) ... & PRIMARY_OP
+:CMP PRIMARY_OP    is (is_m8=0 &
+    (op=0xc9 | op=0xcd | op=0xcf | op=0xc5 | op=0xd2 | op=0xc7 | op=0xdd |
+     op=0xdf | op=0xd9 | op=0xd5 | op=0xc1 | op=0xd1 | op=0xd7 | op=0xc3 |
+     op=0xd3)) ... & PRIMARY_OP
 {
     local data:2 = PRIMARY_OP:2;
     local result:4;
@@ -777,7 +787,10 @@ CPX_OP: ADDR_IMM    is op=0xe0; ADDR_IMM  { export ADDR_IMM; }
 }
 
 # EOR 8 bit.
-:EOR PRIMARY_OP    is (aaa=2 & is_m8=1) ... & PRIMARY_OP
+:EOR PRIMARY_OP    is (is_m8=1 &
+    (op=0x49 | op=0x4d | op=0x4f | op=0x45 | op=0x52 | op=0x47 | op=0x5d |
+     op=0x5f | op=0x59 | op=0x55 | op=0x41 | op=0x51 | op=0x57 | op=0x43 |
+     op=0x53)) ... & PRIMARY_OP
 {
     local data:1 = PRIMARY_OP:1;
 
@@ -786,7 +799,10 @@ CPX_OP: ADDR_IMM    is op=0xe0; ADDR_IMM  { export ADDR_IMM; }
 }
 
 # EOR 16 bit.
-:EOR PRIMARY_OP    is (aaa=2 & is_m8=0) ... & PRIMARY_OP
+:EOR PRIMARY_OP    is (is_m8=0 &
+    (op=0x49 | op=0x4d | op=0x4f | op=0x45 | op=0x52 | op=0x47 | op=0x5d |
+     op=0x5f | op=0x59 | op=0x55 | op=0x41 | op=0x51 | op=0x57 | op=0x43 |
+     op=0x53)) ... & PRIMARY_OP
 {
     local data:2 = PRIMARY_OP:2;
 
@@ -795,7 +811,10 @@ CPX_OP: ADDR_IMM    is op=0xe0; ADDR_IMM  { export ADDR_IMM; }
 }
 
 # LDA 8 bit.
-:LDA PRIMARY_OP    is (aaa=5 & is_m8=1) ... & PRIMARY_OP
+:LDA PRIMARY_OP    is (is_m8=1 &
+    (op=0xa9 | op=0xad | op=0xaf | op=0xa5 | op=0xb2 | op=0xa7 | op=0xbd |
+     op=0xbf | op=0xb9 | op=0xb5 | op=0xa1 | op=0xb1 | op=0xb7 | op=0xa3 |
+     op=0xb3)) ... & PRIMARY_OP
 {
     local data:1 = PRIMARY_OP:1;
 
@@ -804,7 +823,10 @@ CPX_OP: ADDR_IMM    is op=0xe0; ADDR_IMM  { export ADDR_IMM; }
 }
 
 # LDA 16 bit.
-:LDA PRIMARY_OP    is (aaa=5 & is_m8=0) ... & PRIMARY_OP
+:LDA PRIMARY_OP    is (is_m8=0 &
+    (op=0xa9 | op=0xad | op=0xaf | op=0xa5 | op=0xb2 | op=0xa7 | op=0xbd |
+     op=0xbf | op=0xb9 | op=0xb5 | op=0xa1 | op=0xb1 | op=0xb7 | op=0xa3 |
+     op=0xb3)) ... & PRIMARY_OP
 {
     local data:2 = PRIMARY_OP:2;
 
@@ -813,7 +835,10 @@ CPX_OP: ADDR_IMM    is op=0xe0; ADDR_IMM  { export ADDR_IMM; }
 }
 
 # ORA 8 bit.
-:ORA PRIMARY_OP    is (aaa=0 & is_m8=1) ... & PRIMARY_OP
+:ORA PRIMARY_OP    is (is_m8=1 &
+    (op=0x09 | op=0x0d | op=0x0f | op=0x05 | op=0x12 | op=0x07 | op=0x1d |
+     op=0x1f | op=0x19 | op=0x15 | op=0x01 | op=0x11 | op=0x17 | op=0x03 |
+     op=0x13)) ... & PRIMARY_OP
 {
     local data:1 = PRIMARY_OP:1;
 
@@ -822,7 +847,10 @@ CPX_OP: ADDR_IMM    is op=0xe0; ADDR_IMM  { export ADDR_IMM; }
 }
 
 # ORA 16 bit.
-:ORA PRIMARY_OP    is (aaa=0 & is_m8=0) ... & PRIMARY_OP
+:ORA PRIMARY_OP    is (is_m8=0 &
+    (op=0x09 | op=0x0d | op=0x0f | op=0x05 | op=0x12 | op=0x07 | op=0x1d |
+     op=0x1f | op=0x19 | op=0x15 | op=0x01 | op=0x11 | op=0x17 | op=0x03 |
+     op=0x13)) ... & PRIMARY_OP
 {
     local data:2 = PRIMARY_OP:2;
 
@@ -831,10 +859,16 @@ CPX_OP: ADDR_IMM    is op=0xe0; ADDR_IMM  { export ADDR_IMM; }
 }
 
 # SBC with decimal mode is unimplemented.
-:SBC PRIMARY_OP    is (aaa=7 & is_dec=1) ... & PRIMARY_OP  unimpl
+:SBC PRIMARY_OP    is (is_dec=1 &
+    (op=0xe9 | op=0xed | op=0xef | op=0xe5 | op=0xf2 | op=0xe7 | op=0xfd |
+     op=0xff | op=0xf9 | op=0xf5 | op=0xe1 | op=0xf1 | op=0xf7 | op=0xe3 |
+     op=0xf3)) ... & PRIMARY_OP  unimpl
 
 # SBC 8 bit binary.
-:SBC PRIMARY_OP    is (aaa=7 & is_dec=0 & is_m8=1) ... & PRIMARY_OP
+:SBC PRIMARY_OP    is (is_dec=0 & is_m8=1 &
+    (op=0xe9 | op=0xed | op=0xef | op=0xe5 | op=0xf2 | op=0xe7 | op=0xfd |
+     op=0xff | op=0xf9 | op=0xf5 | op=0xe1 | op=0xf1 | op=0xf7 | op=0xe3 |
+     op=0xf3)) ... & PRIMARY_OP
 {
     local data:1 = ~(PRIMARY_OP:1);
     local result:4;
@@ -849,7 +883,10 @@ CPX_OP: ADDR_IMM    is op=0xe0; ADDR_IMM  { export ADDR_IMM; }
 }
 
 # SBC 16 bit binary.
-:SBC PRIMARY_OP    is (aaa=7 & is_dec=0 & is_m8=0) ... & PRIMARY_OP
+:SBC PRIMARY_OP    is (is_dec=0 & is_m8=0 &
+    (op=0xe9 | op=0xed | op=0xef | op=0xe5 | op=0xf2 | op=0xe7 | op=0xfd |
+     op=0xff | op=0xf9 | op=0xf5 | op=0xe1 | op=0xf1 | op=0xf7 | op=0xe3 |
+     op=0xf3)) ... & PRIMARY_OP
 {
     local data:2 = ~(PRIMARY_OP:2);
     local result:4;
