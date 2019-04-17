@@ -769,19 +769,33 @@ BIT_OP: ADDR_IMM    is op=0x89; ADDR_IMM  { export ADDR_IMM; }
     call [target];
 }
 
-CPX_OP: SEC_OP_COMMON    is (aaa=7) ... & SEC_OP_COMMON  { export SEC_OP_COMMON; }
-CPX_OP: ADDR_IMM    is op=0xe0; ADDR_IMM  { export ADDR_IMM; }
+CPXY_OP: SEC_OP_COMMON    is (cc=0) ... & SEC_OP_COMMON  { export SEC_OP_COMMON; }
+CPXY_OP: ADDR_IMM    is bbb=0; ADDR_IMM  { export ADDR_IMM; }
 
 # CPX 8 bit.
-:CPX CPX_OP    is (is_m8=1 & (op=0xe0 | op=0xec | op=0xe4)) ... & CPX_OP {
-    local result:4 = sext(XLow) - sext(CPX_OP:1);
+:CPX CPXY_OP    is (is_m8=1 & (op=0xe0 | op=0xec | op=0xe4)) ... & CPXY_OP {
+    local result:4 = sext(XLow) - sext(CPXY_OP:1);
     flag8_NZ(result:1);
     CF = result s>= 0;
 }
 
 # CPX 16 bit.
-:CPX CPX_OP    is (is_m8=0 & (op=0xe0 | op=0xec | op=0xe4)) ... & CPX_OP {
-    local result:4 = sext(X) - sext(CPX_OP:2);
+:CPX CPXY_OP    is (is_m8=0 & (op=0xe0 | op=0xec | op=0xe4)) ... & CPXY_OP {
+    local result:4 = sext(X) - sext(CPXY_OP:2);
+    flag16_NZ(result:2);
+    CF = result s>= 0;
+}
+
+# CPY 8 bit.
+:CPY CPXY_OP    is (is_m8=0 & (op=0xc0 | op=0xcc | op=0xc4)) ... & CPXY_OP {
+    local result:4 = sext(YLow) - sext(CPXY_OP:1);
+    flag8_NZ(result:1);
+    CF = result s>= 0;
+}
+
+# CPY 16 bit.
+:CPY CPXY_OP    is (is_m8=1 & (op=0xc0 | op=0xcc | op=0xc4)) ... & CPXY_OP {
+    local result:4 = sext(Y) - sext(CPXY_OP:2);
     flag16_NZ(result:2);
     CF = result s>= 0;
 }
