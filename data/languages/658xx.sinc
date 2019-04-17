@@ -800,6 +800,27 @@ CPXY_OP: ADDR_IMM    is bbb=0; ADDR_IMM  { export ADDR_IMM; }
     CF = result s>= 0;
 }
 
+DEC_OP: SEC_OP_X    is (aaa=6) ... & SEC_OP_X  { export SEC_OP_X; }
+DEC_OP: ADDR_ACC    is (aaa=1) ... & ADDR_ACC  { export ADDR_ACC; }
+
+# DEC 8 bit.
+:DEC DEC_OP    is (is_m8=1 &
+    (op=0x3a | op=0xce | op=0xc6 | op=0xde | op=0xd6)) ... & DEC_OP
+{
+    local result:1 = DEC_OP:1 - 1;
+    flag8_NZ(result);
+    DEC_OP[0,8] = result;
+}
+
+# DEC 16 bit.
+:DEC DEC_OP    is (is_m8=0 &
+    (op=0x3a | op=0xce | op=0xc6 | op=0xde | op=0xd6)) ... & DEC_OP
+{
+    local result:2 = DEC_OP:2 - 1;
+    flag16_NZ(result);
+    DEC_OP = result;
+}
+
 # EOR 8 bit.
 :EOR PRIMARY_OP    is (is_m8=1 &
     (op=0x49 | op=0x4d | op=0x4f | op=0x45 | op=0x52 | op=0x47 | op=0x5d |
