@@ -731,6 +731,34 @@ BIT_OP: ADDR_IMM    is op=0x89; ADDR_IMM  { export ADDR_IMM; }
     CF = result s>= 0;
 }
 
+:COP    is op=0x02 & is_emu
+{
+    local pc_inc:2 = PC + 2;
+    local target:3;
+    local is_emulation:1 = is_emu == 1;
+    if (is_emulation) goto <do_emulation>;
+
+    <do_native>
+    push8(PBR);
+    push16(pc_inc);
+    push_status_native();
+    IF = 1;
+    DF = 0;
+    PBR = 0;
+    target = zext(*:2 0x00FFE4:3);
+    goto <end>;
+
+    <do_emulation>
+    push16(pc_inc);
+    push_status_emulation();
+    IF = 1;
+    DF = 0;
+    target = zext(*:2 0x00FFF4:3);
+
+    <end>
+    call [target];
+}
+
 # EOR 8 bit.
 :EOR PRIMARY_OP    is (aaa=2 & is_m8=1) ... & PRIMARY_OP
 {
