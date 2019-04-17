@@ -603,29 +603,29 @@ SEC_OP_Y: ADDR_DP_IDX_Y    is bbb=5; ADDR_DP_IDX_Y  { export ADDR_DP_IDX_Y; }
     flag16_NZ(C);
 }
 
-ASL_OP: SEC_OP_X    is SEC_OP_X  { export SEC_OP_X; }
-ASL_OP: ADDR_ACC    is bbb=2; ADDR_ACC  { export ADDR_ACC; }
+SHIFT_OP: SEC_OP_X    is SEC_OP_X  { export SEC_OP_X; }
+SHIFT_OP: ADDR_ACC    is bbb=2; ADDR_ACC  { export ADDR_ACC; }
 
 # ASL 8 bit.
-:ASL ASL_OP    is (is_m8=1 &
-    (op=0x0a | op=0x0e | op=0x06 | op=0x1e | op=0x16)) ... & ASL_OP
+:ASL SHIFT_OP    is (is_m8=1 &
+    (op=0x0a | op=0x0e | op=0x06 | op=0x1e | op=0x16)) ... & SHIFT_OP
 {
-    local data:1 = ASL_OP:1;
+    local data:1 = SHIFT_OP:1;
     local result:1 = data << 1;
 
-    ASL_OP[0,8] = result;
+    SHIFT_OP[0,8] = result;
     flag8_NZ(result);
     CF = data[7,1];
 }
 
 # ASL 16 bit.
-:ASL ASL_OP    is (is_m8=0 &
-    (op=0x0a | op=0x0e | op=0x06 | op=0x1e | op=0x16)) ... & ASL_OP
+:ASL SHIFT_OP    is (is_m8=0 &
+    (op=0x0a | op=0x0e | op=0x06 | op=0x1e | op=0x16)) ... & SHIFT_OP
 {
-    local data:2 = ASL_OP;
+    local data:2 = SHIFT_OP;
     local result:2 = data << 1;
 
-    ASL_OP = result;
+    SHIFT_OP = result;
     flag16_NZ(result);
     CF = data[15,1];
 }
@@ -991,6 +991,32 @@ LDY_OP: ADDR_IMM    is (bbb=0) ... & ADDR_IMM  { export ADDR_IMM; }
     local data:2 = LDY_OP;
     flag16_NZ(data);
     Y = data;
+}
+
+# LSR 8 bit.
+:LSR SHIFT_OP    is (is_m8=1 &
+    (op=0x4a | op=0x4e | op=0x46 | op=0x5e | op=0x56)) ... & SHIFT_OP
+{
+    local data:1 = SHIFT_OP:1;
+    local result:1 = data >> 1;
+
+    SHIFT_OP[0,8] = result;
+    flag8_Z(result);
+    NF = 0;
+    CF = data[0,1];
+}
+
+# LSR 16 bit.
+:LSR SHIFT_OP    is (is_m8=0 &
+    (op=0x4a | op=0x4e | op=0x46 | op=0x5e | op=0x56)) ... & SHIFT_OP
+{
+    local data:2 = SHIFT_OP;
+    local result:2 = data >> 1;
+
+    SHIFT_OP = result;
+    flag16_Z(result);
+    NF = 0;
+    CF = data[0,1];
 }
 
 # ORA 8 bit.
