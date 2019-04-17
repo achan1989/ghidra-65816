@@ -951,6 +951,48 @@ DEC_INC_OP: ADDR_ACC    is (bbb=6) ... & ADDR_ACC  { export ADDR_ACC; }
     flag16_NZ(C);
 }
 
+LDX_OP: SEC_OP_Y    is (aaa=5) ... & SEC_OP_Y  { export SEC_OP_Y; }
+LDX_OP: ADDR_IMM    is (bbb=0) ... & ADDR_IMM  { export ADDR_IMM; }
+
+# LDX 8 bit.
+:LDX LDX_OP    is (is_m8=1 &
+    (op=0xa2 | op=0xae | op=0xa6 | op=0xbe | op=0xb6)) ... & LDX_OP
+{
+    local data:1 = LDX_OP:1;
+    flag8_NZ(data);
+    XLow = data;
+}
+
+# LDX 16 bit.
+:LDX LDX_OP    is (is_m8=0 &
+    (op=0xa2 | op=0xae | op=0xa6 | op=0xbe | op=0xb6)) ... & LDX_OP
+{
+    local data:2 = LDX_OP;
+    flag16_NZ(data);
+    X = data;
+}
+
+LDY_OP: SEC_OP_X    is (aaa=5) ... & SEC_OP_X  { export SEC_OP_X; }
+LDY_OP: ADDR_IMM    is (bbb=0) ... & ADDR_IMM  { export ADDR_IMM; }
+
+# LDY 8 bit.
+:LDY LDY_OP    is (is_m8=1 &
+    (op=0xa0 | op=0xac | op=0xa4 | op=0xbc | op=0xb4)) ... & LDY_OP
+{
+    local data:1 = LDY_OP:1;
+    flag8_NZ(data);
+    YLow = data;
+}
+
+# LDY 16 bit.
+:LDY LDY_OP    is (is_m8=0 &
+    (op=0xa0 | op=0xac | op=0xa4 | op=0xbc | op=0xb4)) ... & LDY_OP
+{
+    local data:2 = LDY_OP;
+    flag16_NZ(data);
+    Y = data;
+}
+
 # ORA 8 bit.
 :ORA PRIMARY_OP    is (is_m8=1 &
     (op=0x09 | op=0x0d | op=0x0f | op=0x05 | op=0x12 | op=0x07 | op=0x1d |
