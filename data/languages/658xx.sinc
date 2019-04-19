@@ -156,32 +156,44 @@ macro flag16_NZ(_acc) {
 
 macro push8(_val8) {
     local value:1 = _val8;
-    *:1 SP = value;
+    local sp:3 = zext(SP);
+    *:1 sp = value;
     SP = SP - 1;
 }
 
 macro push16(_val16) {
     local value:2 = _val16;
+    local sp:3;
+
     # High byte.
-    *:1 SP = value(1);
+    sp = zext(SP);
+    *:1 sp = value(1);
     SP = SP - 1;
+
     # Low byte.
-    *:1 SP = value:1;
+    sp = zext(SP);
+    *:1 sp = value:1;
     SP = SP - 1;
 }
 
 macro pull8(var8) {
     SP = SP + 1;
-    var8 = *:1 SP;
+    local sp:3 = zext(SP);
+    var8 = *:1 sp;
 }
 
 macro pull16(var16) {
+    local sp:3;
+
     # Low byte.
     SP = SP + 1;
-    var16[0,8] = *:1 SP;
+    sp = zext(SP);
+    var16[0,8] = *:1 sp;
+
     # High byte.
     SP = SP + 1;
-    var16[8,8] = *:1 SP;
+    sp = zext(SP);
+    var16[8,8] = *:1 sp;
 }
 
 macro push_status_native() {
