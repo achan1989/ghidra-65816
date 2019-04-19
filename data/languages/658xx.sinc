@@ -37,6 +37,8 @@ define token opbyte (8)
 
 define token data8 (8)
    imm8     = (0,7)
+   srcbk    = (0,7)
+   destbk   = (0,7)
    rel      = (0,7) signed
 ;
 
@@ -1017,6 +1019,90 @@ LDY_OP: ADDR_IMM    is (bbb=0) ... & ADDR_IMM  { export ADDR_IMM; }
     flag16_Z(result);
     NF = 0;
     CF = data[0,1];
+}
+
+# MVN 8 bit.
+:MVN srcbk,destbk    is (is_m8=1 & (op=0x54 ; destbk; srcbk))
+{
+    local src_bank:1 = srcbk;
+    local dest_bank:1 = destbk;
+    DBR = dest_bank;
+    local src_addr:3;
+    local dest_addr:3;
+
+    <move_loop>
+    make_addr24(src_addr, src_bank, zext(XLow));
+    make_addr24(dest_addr, dest_bank, zext(YLow));
+    *:1 dest_addr = *:1 src_addr;
+
+    XLow = XLow + 1;
+    YLow = YLow + 1;
+    C = C - 1;
+
+    if (C != 0xFFFF) goto <move_loop>;
+}
+
+# MVN 16 bit.
+:MVN srcbk,destbk    is (is_m8=0 & (op=0x54 ; destbk; srcbk))
+{
+    local src_bank:1 = srcbk;
+    local dest_bank:1 = destbk;
+    DBR = dest_bank;
+    local src_addr:3;
+    local dest_addr:3;
+
+    <move_loop>
+    make_addr24(src_addr, src_bank, X);
+    make_addr24(dest_addr, dest_bank, Y);
+    *:1 dest_addr = *:1 src_addr;
+
+    X = X + 1;
+    Y = Y + 1;
+    C = C - 1;
+
+    if (C != 0xFFFF) goto <move_loop>;
+}
+
+# MVP 8 bit.
+:MVP srcbk,destbk    is (is_m8=1 & (op=0x44 ; destbk; srcbk))
+{
+    local src_bank:1 = srcbk;
+    local dest_bank:1 = destbk;
+    DBR = dest_bank;
+    local src_addr:3;
+    local dest_addr:3;
+
+    <move_loop>
+    make_addr24(src_addr, src_bank, zext(XLow));
+    make_addr24(dest_addr, dest_bank, zext(YLow));
+    *:1 dest_addr = *:1 src_addr;
+
+    XLow = XLow - 1;
+    YLow = YLow - 1;
+    C = C - 1;
+
+    if (C != 0xFFFF) goto <move_loop>;
+}
+
+# MVP 16 bit.
+:MVP srcbk,destbk    is (is_m8=0 & (op=0x44 ; destbk; srcbk))
+{
+    local src_bank:1 = srcbk;
+    local dest_bank:1 = destbk;
+    DBR = dest_bank;
+    local src_addr:3;
+    local dest_addr:3;
+
+    <move_loop>
+    make_addr24(src_addr, src_bank, X);
+    make_addr24(dest_addr, dest_bank, Y);
+    *:1 dest_addr = *:1 src_addr;
+
+    X = X - 1;
+    Y = Y - 1;
+    C = C - 1;
+
+    if (C != 0xFFFF) goto <move_loop>;
 }
 
 # ORA 8 bit.
