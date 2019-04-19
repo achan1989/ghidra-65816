@@ -39,11 +39,12 @@ define token data8 (8)
    imm8     = (0,7)
    srcbk    = (0,7)
    destbk   = (0,7)
-   rel      = (0,7) signed
+   rel8      = (0,7) signed
 ;
 
 define token data16 (16)
     imm16 = (0,15)
+    rel16 = (0,15) signed
 ;
 
 define token data24 (24)
@@ -252,6 +253,7 @@ macro pull_status_emulation() {
 # Addressing modes for primary group instructions (ADC AND CMP EOR LDA ORA SBC STA).
 # TODO: deal with 65802/65816 in native/emulation modes?
 # TODO: is explicit use of const space necessary?
+# TODO: for all operations that affect the stack, limit the stack pointer when in emulation mode.
 
 # In the 6502/65C02, the effective address formed using zero page indexed addressing from a zero page
 # base address of $F0 and an index of $20 is $10; that is, zero page indexed effective addresses wrap around to
@@ -276,6 +278,12 @@ ADDR_ABS: !$imm16    is imm16  {
     local tmp:3;
     make_addr24(tmp, DBR, imm16);
     export *:2 tmp;
+}
+
+# Stack absolute.
+ADDR_STACK_ABS: !$imm16    is imm16  {
+    local value:2 = imm16;
+    export value;
 }
 
 # Absolute long.
@@ -304,6 +312,15 @@ ADDR_DP_IND: ($imm8)    is imm8  {
     local ea:3;
     make_addr24(ea, DBR, addr16);
     export *:2 ea;
+}
+
+# Stack direct page indirect.
+ADDR_STACK_DP_IND: ($imm8)    is imm8  {
+    local ind:3;
+    calculate_dp_addr24_no_emu(ind, imm8);
+
+    local value:2 = * ind;
+    export value;
 }
 
 # Direct page indirect long.
@@ -1150,6 +1167,30 @@ LDY_OP: ADDR_IMM    is (bbb=0) ... & ADDR_IMM  { export ADDR_IMM; }
 
     C = C | data;
     flag16_NZ(C);
+}
+
+:PEA ADDR_STACK_ABS    is (op=0xf4; ADDR_STACK_ABS)
+{
+    push16(ADDR_STACK_ABS);
+}
+
+:PEI ADDR_STACK_DP_IND    is (op=0xd4; ADDR_STACK_DP_IND)
+{
+    push16(ADDR_STACK_DP_IND);
+}
+
+:PER rel16    is (op=0x62; rel16)
+{
+    # Make sure that the PC of the next instruction is actually correct
+    # (account for wrapping to stay within the PBR). I don't think Ghidra
+    # will do this naturally due to the way I have defined the PC.
+    local this_pc_full:3 = inst_start;
+    local this_pbr:1 = this_pc_full(2);
+    local pc_next:3;
+    make_addr24(pc_next, this_pbr, inst_next & 0xFFFF);
+
+    local data:2 = pc_next:2 + rel16;
+    push16(data);
 }
 
 # SBC with decimal mode is unimplemented.
