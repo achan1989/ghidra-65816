@@ -16,15 +16,22 @@ define register offset=0x10  size=1  [ A B XLow _ YLow _ _ _ _ _ ];
 define register offset=0x20  size=1  [ DBR ];
 
 # Status flags.
-# TODO: remove MF, XF, DF, EF flags, then rename and use context?
-define register offset=0x30  size=1  [ NF VF MF XF DF IF ZF CF EF BF ];
+define register offset=0x30  size=1  [ NF VF IF ZF CF BF ];
 define register offset=0x40  size=4  contextreg;
 define context contextreg
-    is_m8=(0,0)
-    is_x8=(1,1)
-    is_dec=(2,2)
-    is_emu=(3,3)
+    ctx_MF=(0,0)
+    ctx_XF=(1,1)
+    ctx_DF=(2,2)
+    ctx_EF=(3,3)
 ;
+# Unfortunately the ctx_xx fields can't be used at all in P-code macros, and
+# are a pain to use in a semantic section.
+# These preprocessor macros work around this and allow for simpler manipulation
+# of status flags (bit range access/assignments).
+@define MF "contextreg[0,1]"
+@define XF "contextreg[1,1]"
+@define DF "contextreg[2,1]"
+@define EF "contextreg[3,1]"
 
 
 define token opbyte (8)
@@ -65,7 +72,7 @@ macro calculate_dp_addr24(_out, _offset8) {
     local offset8:1 = _offset8;
     local result:3;
 
-    if ((EF == 1) && ((DP & 0xFF) == 0)) goto <emu>;
+    if (($(EF) == 1) && ((DP & 0xFF) == 0)) goto <emu>;
     goto <not_emu>;
 
     <emu>
@@ -201,9 +208,9 @@ macro push_status_native() {
     local status:1;
     status[7,1] = NF;
     status[6,1] = VF;
-    status[5,1] = MF;
-    status[4,1] = XF;
-    status[3,1] = DF;
+    status[5,1] = $(MF);
+    status[4,1] = $(XF);
+    status[3,1] = $(DF);
     status[2,1] = IF;
     status[1,1] = ZF;
     status[0,1] = CF;
@@ -216,26 +223,28 @@ macro push_status_emulation() {
     status[6,1] = VF;
     # bit 5 unused
     status[4,1] = BF;
-    status[3,1] = DF;
+    status[3,1] = $(DF);
     status[2,1] = IF;
     status[1,1] = ZF;
     status[0,1] = CF;
     push8(status);
 }
 
+# Does not support setting the context flags MF, XF, DF.
 macro pull_status_native() {
     local status:1;
     pull8(status);
     NF = status[7,1];
     VF = status[6,1];
-    MF = status[5,1];
-    XF = status[4,1];
-    DF = status[3,1];
+    # MF = status[5,1];
+    # XF = status[4,1];
+    # DF = status[3,1];
     IF = status[2,1];
     ZF = status[1,1];
     CF = status[0,1];
 }
 
+# Does not support setting the context flag DF.
 macro pull_status_emulation() {
     local status:1;
     pull8(status);
@@ -243,7 +252,7 @@ macro pull_status_emulation() {
     VF = status[6,1];
     # bit 5 unused
     BF = status[4,1];
-    DF = status[3,1];
+    # DF = status[3,1];
     IF = status[2,1];
     ZF = status[1,1];
     CF = status[0,1];
@@ -340,7 +349,7 @@ ADDR_ABS_IDX_X: !$imm16,"X"    is imm16  {
     make_addr24(base, DBR, imm16);
 
     local idx:2 = X;
-    if (XF == 0) goto <skip_idx8>;
+    if ($(XF) == 0) goto <skip_idx8>;
     idx = zext(XLow);
     <skip_idx8>
 
@@ -354,7 +363,7 @@ ADDR_ABS_LONG_IND_X: >$imm24,"X"    is imm24  {
     local base:3 = imm24;
 
     local idx:2 = X;
-    if (XF == 0) goto <skip_idx8>;
+    if ($(XF) == 0) goto <skip_idx8>;
     idx = zext(XLow);
     <skip_idx8>
 
@@ -369,7 +378,7 @@ ADDR_ABS_IDX_Y: !$imm16,"Y"    is imm16  {
     make_addr24(base, DBR, imm16);
 
     local idx:2 = Y;
-    if (XF == 0) goto <skip_idx8>;
+    if ($(XF) == 0) goto <skip_idx8>;
     idx = zext(YLow);
     <skip_idx8>
 
@@ -387,7 +396,7 @@ ADDR_ACC: "A"    is epsilon  {
 # TODO: check against higan.
 ADDR_DP_IDX_X: $imm8,"X"    is imm8  {
     local idx:2 = X;
-    if (XF == 0) goto <skip_idx8>;
+    if ($(XF) == 0) goto <skip_idx8>;
     idx = zext(XLow);
     <skip_idx8>
 
@@ -397,7 +406,7 @@ ADDR_DP_IDX_X: $imm8,"X"    is imm8  {
     local ea:3 = zext(DP + imm8_2 + idx);
 
     # Restrict to the zero page if emulation mode and DP=0.
-    if (!( (EF==1) && (DP == 0) )) goto <skip_emu>;
+    if (!( ($(EF)==1) && (DP == 0) )) goto <skip_emu>;
     ea = ea & 0xFF;
     <skip_emu>
 
@@ -409,7 +418,7 @@ ADDR_DP_IDX_X: $imm8,"X"    is imm8  {
 # TODO: check against higan.
 ADDR_DP_IDX_Y: $imm8,"Y"    is imm8  {
     local idx:2 = Y;
-    if (XF == 0) goto <skip_idx8>;
+    if ($(XF) == 0) goto <skip_idx8>;
     idx = zext(YLow);
     <skip_idx8>
 
@@ -419,7 +428,7 @@ ADDR_DP_IDX_Y: $imm8,"Y"    is imm8  {
     local ea:3 = zext(DP + imm8_2 + idx);
 
     # Restrict to the zero page if emulation mode and DP=0.
-    if (!( (EF==1) && (DP == 0) )) goto <skip_emu>;
+    if (!( ($(EF)==1) && (DP == 0) )) goto <skip_emu>;
     ea = ea & 0xFF;
     <skip_emu>
 
@@ -432,13 +441,13 @@ ADDR_DP_IDX_Y: $imm8,"Y"    is imm8  {
 ADDR_DP_IDX_X_IND: (<$imm8,"X")    is imm8  {
     local idx:2 = X;
     # For this constructor sleigh has decided that it can't infer the bool size for some reason...
-    local is_not_idx8:1 = XF == 0;
+    local is_not_idx8:1 = $(XF) == 0;
     if (is_not_idx8) goto <skip_idx8>;
     idx = zext(XLow);
     <skip_idx8>
 
     local ind:3;
-    local is_not_emu:1 = EF == 0;
+    local is_not_emu:1 = $(EF) == 0;
     if (is_not_emu) goto <not_emu>;
 
     <emu>
@@ -470,7 +479,7 @@ ADDR_DP_IND_IDX_Y: ($imm8),"Y"    is imm8  {
     make_addr24(base_ea, DBR, ind);
 
     local idx:3 = zext(Y);
-    if (XF == 0) goto <skip_idx8>;
+    if ($(XF) == 0) goto <skip_idx8>;
     idx = zext(YLow);
     <skip_idx8>
 
@@ -484,7 +493,7 @@ ADDR_DP_IND_LONG_IDX_Y: [$imm8],"Y"    is imm8  {
     read24_dp_offset(ind, imm8);
 
     local idx:3 = zext(Y);
-    if (XF == 0) goto <skip_idx8>;
+    if ($(XF) == 0) goto <skip_idx8>;
     idx = zext(YLow);
     <skip_idx8>
 
@@ -520,7 +529,7 @@ ADDR_SR_IND_IDX_Y: ($imm8,"S"),"Y"    is imm8  {
     make_addr24(ea_base, DBR, ind);
 
     local idx:3 = zext(Y);
-    if (XF == 0) goto <skip_idx8>;
+    if ($(XF) == 0) goto <skip_idx8>;
     idx = zext(YLow);
     <skip_idx8>
 
@@ -529,14 +538,14 @@ ADDR_SR_IND_IDX_Y: ($imm8,"S"),"Y"    is imm8  {
 }
 
 # Immediate, 8 bit mode.
-ADDR_IMM: #$imm8    is is_m8=1; imm8  {
+ADDR_IMM: #$imm8    is ctx_MF=1; imm8  {
     local imm8_1:1 = imm8;
     local value:2 = zext(imm8_1);
     export value;
 }
 
 # Immediate, 16 bit mode.
-ADDR_IMM: #$imm16    is is_m8=0; imm16  {
+ADDR_IMM: #$imm16    is ctx_MF=0; imm16  {
     local value:2 = imm16;
     export value;
 }
@@ -584,13 +593,13 @@ SEC_OP_Y: ADDR_DP_IDX_Y    is bbb=5; ADDR_DP_IDX_Y  { export ADDR_DP_IDX_Y; }
 # Begin instructions.
 
 # ADC with decimal mode is unimplemented.
-:ADC PRIMARY_OP    is (is_dec=1 &
+:ADC PRIMARY_OP    is (ctx_DF=1 &
     (op=0x69 | op=0x6d | op=0x6f | op=0x65 | op=0x72 | op=0x67 | op=0x7d |
      op=0x7f | op=0x79 | op=0x75 | op=0x61 | op=0x71 | op=0x77 | op=0x63 |
      op=0x73)) ... & PRIMARY_OP  unimpl
 
 # ADC 8 bit binary.
-:ADC PRIMARY_OP    is (is_dec=0 & is_m8=1 &
+:ADC PRIMARY_OP    is (ctx_DF=0 & ctx_MF=1 &
     (op=0x69 | op=0x6d | op=0x6f | op=0x65 | op=0x72 | op=0x67 | op=0x7d |
      op=0x7f | op=0x79 | op=0x75 | op=0x61 | op=0x71 | op=0x77 | op=0x63 |
      op=0x73)) ... & PRIMARY_OP
@@ -608,7 +617,7 @@ SEC_OP_Y: ADDR_DP_IDX_Y    is bbb=5; ADDR_DP_IDX_Y  { export ADDR_DP_IDX_Y; }
 }
 
 # ADC 16 bit binary.
-:ADC PRIMARY_OP    is (is_dec=0 & is_m8=0 &
+:ADC PRIMARY_OP    is (ctx_DF=0 & ctx_MF=0 &
     (op=0x69 | op=0x6d | op=0x6f | op=0x65 | op=0x72 | op=0x67 | op=0x7d |
      op=0x7f | op=0x79 | op=0x75 | op=0x61 | op=0x71 | op=0x77 | op=0x63 |
      op=0x73)) ... & PRIMARY_OP
@@ -626,7 +635,7 @@ SEC_OP_Y: ADDR_DP_IDX_Y    is bbb=5; ADDR_DP_IDX_Y  { export ADDR_DP_IDX_Y; }
 }
 
 # AND 8 bit.
-:AND PRIMARY_OP    is (is_m8=1 &
+:AND PRIMARY_OP    is (ctx_MF=1 &
     (op=0x29 | op=0x2d | op=0x2f | op=0x25 | op=0x32 | op=0x27 | op=0x3d |
      op=0x3f | op=0x39 | op=0x35 | op=0x21 | op=0x31 | op=0x37 | op=0x23 |
      op=0x33)) ... & PRIMARY_OP
@@ -638,7 +647,7 @@ SEC_OP_Y: ADDR_DP_IDX_Y    is bbb=5; ADDR_DP_IDX_Y  { export ADDR_DP_IDX_Y; }
 }
 
 # AND 16 bit.
-:AND PRIMARY_OP    is (is_m8=0 &
+:AND PRIMARY_OP    is (ctx_MF=0 &
     (op=0x29 | op=0x2d | op=0x2f | op=0x25 | op=0x32 | op=0x27 | op=0x3d |
      op=0x3f | op=0x39 | op=0x35 | op=0x21 | op=0x31 | op=0x37 | op=0x23 |
      op=0x33)) ... & PRIMARY_OP
@@ -653,7 +662,7 @@ SHIFT_OP: SEC_OP_X    is SEC_OP_X  { export SEC_OP_X; }
 SHIFT_OP: ADDR_ACC    is bbb=2; ADDR_ACC  { export ADDR_ACC; }
 
 # ASL 8 bit.
-:ASL SHIFT_OP    is (is_m8=1 &
+:ASL SHIFT_OP    is (ctx_MF=1 &
     (op=0x0a | op=0x0e | op=0x06 | op=0x1e | op=0x16)) ... & SHIFT_OP
 {
     local data:1 = SHIFT_OP:1;
@@ -665,7 +674,7 @@ SHIFT_OP: ADDR_ACC    is bbb=2; ADDR_ACC  { export ADDR_ACC; }
 }
 
 # ASL 16 bit.
-:ASL SHIFT_OP    is (is_m8=0 &
+:ASL SHIFT_OP    is (ctx_MF=0 &
     (op=0x0a | op=0x0e | op=0x06 | op=0x1e | op=0x16)) ... & SHIFT_OP
 {
     local data:2 = SHIFT_OP;
@@ -680,7 +689,7 @@ BIT_OP: SEC_OP_X    is (aaa=1 & cc=0) ... & SEC_OP_X  { export SEC_OP_X; }
 BIT_OP: ADDR_IMM    is op=0x89; ADDR_IMM  { export ADDR_IMM; }
 
 # BIT 8 bit.
-:BIT BIT_OP    is (is_m8=1 &
+:BIT BIT_OP    is (ctx_MF=1 &
     (op=0x89 | op=0x2c | op=0x24 | op=0x3c | op=0x34) & op) ... & BIT_OP
 {
     local data:1 = BIT_OP:1;
@@ -696,7 +705,7 @@ BIT_OP: ADDR_IMM    is op=0x89; ADDR_IMM  { export ADDR_IMM; }
 }
 
 # BIT 16 bit.
-:BIT BIT_OP    is (is_m8=0 &
+:BIT BIT_OP    is (ctx_MF=0 &
     (op=0x89 | op=0x2c | op=0x24 | op=0x3c | op=0x34) & op) ... & BIT_OP
 {
     local data:2 = BIT_OP:2;
@@ -711,11 +720,12 @@ BIT_OP: ADDR_IMM    is op=0x89; ADDR_IMM  { export ADDR_IMM; }
     flag16_Z(result);
 }
 
-:BRK    is op=0x00 & is_emu
+:BRK    is op=0x00
+    [ctx_DF = 0; globalset(inst_next, ctx_DF);]
 {
     local pc_inc:2 = PC + 2;
     local target:3;
-    local is_emulation:1 = is_emu == 1;
+    local is_emulation:1 = $(EF) == 1;
     if (is_emulation) goto <do_emulation>;
 
     <do_native>
@@ -723,7 +733,6 @@ BIT_OP: ADDR_IMM    is op=0x89; ADDR_IMM  { export ADDR_IMM; }
     push16(pc_inc);
     push_status_native();
     IF = 1;
-    DF = 0;
     PBR = 0;
     target = zext(*:2 0x00FFE6:3);
     goto <end>;
@@ -732,7 +741,6 @@ BIT_OP: ADDR_IMM    is op=0x89; ADDR_IMM  { export ADDR_IMM; }
     push16(pc_inc);
     local save_bf:1 = BF;  BF = 1;  push_status_emulation();  BF = save_bf;
     IF = 1;
-    DF = 0;
     target = zext(*:2 0x00FFFE:3);
 
     <end>
@@ -745,9 +753,8 @@ BIT_OP: ADDR_IMM    is op=0x89; ADDR_IMM  { export ADDR_IMM; }
 }
 
 :CLD    is op=0xD8
-{
-    DF = 0;
-}
+    [ctx_DF = 0; globalset(inst_next, ctx_DF); ]
+{}
 
 :CLI    is op=0x58
 {
@@ -760,7 +767,7 @@ BIT_OP: ADDR_IMM    is op=0x89; ADDR_IMM  { export ADDR_IMM; }
 }
 
 # CMP 8 bit.
-:CMP PRIMARY_OP    is (is_m8=1 &
+:CMP PRIMARY_OP    is (ctx_MF=1 &
     (op=0xc9 | op=0xcd | op=0xcf | op=0xc5 | op=0xd2 | op=0xc7 | op=0xdd |
      op=0xdf | op=0xd9 | op=0xd5 | op=0xc1 | op=0xd1 | op=0xd7 | op=0xc3 |
      op=0xd3)) ... & PRIMARY_OP
@@ -774,7 +781,7 @@ BIT_OP: ADDR_IMM    is op=0x89; ADDR_IMM  { export ADDR_IMM; }
 }
 
 # CMP 16 bit.
-:CMP PRIMARY_OP    is (is_m8=0 &
+:CMP PRIMARY_OP    is (ctx_MF=0 &
     (op=0xc9 | op=0xcd | op=0xcf | op=0xc5 | op=0xd2 | op=0xc7 | op=0xdd |
      op=0xdf | op=0xd9 | op=0xd5 | op=0xc1 | op=0xd1 | op=0xd7 | op=0xc3 |
      op=0xd3)) ... & PRIMARY_OP
@@ -787,11 +794,12 @@ BIT_OP: ADDR_IMM    is op=0x89; ADDR_IMM  { export ADDR_IMM; }
     CF = result s>= 0;
 }
 
-:COP    is op=0x02 & is_emu
+:COP    is op=0x02
+    [ctx_DF = 0; globalset(inst_next, ctx_DF); ]
 {
     local pc_inc:2 = PC + 2;
     local target:3;
-    local is_emulation:1 = is_emu == 1;
+    local is_emulation:1 = $(EF) == 1;
     if (is_emulation) goto <do_emulation>;
 
     <do_native>
@@ -799,7 +807,6 @@ BIT_OP: ADDR_IMM    is op=0x89; ADDR_IMM  { export ADDR_IMM; }
     push16(pc_inc);
     push_status_native();
     IF = 1;
-    DF = 0;
     PBR = 0;
     target = zext(*:2 0x00FFE4:3);
     goto <end>;
@@ -808,7 +815,6 @@ BIT_OP: ADDR_IMM    is op=0x89; ADDR_IMM  { export ADDR_IMM; }
     push16(pc_inc);
     push_status_emulation();
     IF = 1;
-    DF = 0;
     target = zext(*:2 0x00FFF4:3);
 
     <end>
@@ -819,28 +825,28 @@ CPXY_OP: SEC_OP_COMMON    is (cc=0) ... & SEC_OP_COMMON  { export SEC_OP_COMMON;
 CPXY_OP: ADDR_IMM    is bbb=0; ADDR_IMM  { export ADDR_IMM; }
 
 # CPX 8 bit.
-:CPX CPXY_OP    is (is_m8=1 & (op=0xe0 | op=0xec | op=0xe4)) ... & CPXY_OP {
+:CPX CPXY_OP    is (ctx_MF=1 & (op=0xe0 | op=0xec | op=0xe4)) ... & CPXY_OP {
     local result:4 = sext(XLow) - sext(CPXY_OP:1);
     flag8_NZ(result:1);
     CF = result s>= 0;
 }
 
 # CPX 16 bit.
-:CPX CPXY_OP    is (is_m8=0 & (op=0xe0 | op=0xec | op=0xe4)) ... & CPXY_OP {
+:CPX CPXY_OP    is (ctx_MF=0 & (op=0xe0 | op=0xec | op=0xe4)) ... & CPXY_OP {
     local result:4 = sext(X) - sext(CPXY_OP:2);
     flag16_NZ(result:2);
     CF = result s>= 0;
 }
 
 # CPY 8 bit.
-:CPY CPXY_OP    is (is_m8=0 & (op=0xc0 | op=0xcc | op=0xc4)) ... & CPXY_OP {
+:CPY CPXY_OP    is (ctx_MF=0 & (op=0xc0 | op=0xcc | op=0xc4)) ... & CPXY_OP {
     local result:4 = sext(YLow) - sext(CPXY_OP:1);
     flag8_NZ(result:1);
     CF = result s>= 0;
 }
 
 # CPY 16 bit.
-:CPY CPXY_OP    is (is_m8=1 & (op=0xc0 | op=0xcc | op=0xc4)) ... & CPXY_OP {
+:CPY CPXY_OP    is (ctx_MF=1 & (op=0xc0 | op=0xcc | op=0xc4)) ... & CPXY_OP {
     local result:4 = sext(Y) - sext(CPXY_OP:2);
     flag16_NZ(result:2);
     CF = result s>= 0;
@@ -850,7 +856,7 @@ DEC_INC_OP: SEC_OP_X    is (cc=2) ... & SEC_OP_X  { export SEC_OP_X; }
 DEC_INC_OP: ADDR_ACC    is (bbb=6) ... & ADDR_ACC  { export ADDR_ACC; }
 
 # DEC 8 bit.
-:DEC DEC_INC_OP    is (is_m8=1 &
+:DEC DEC_INC_OP    is (ctx_MF=1 &
     (op=0x3a | op=0xce | op=0xc6 | op=0xde | op=0xd6)) ... & DEC_INC_OP
 {
     local result:1 = DEC_INC_OP:1 - 1;
@@ -859,7 +865,7 @@ DEC_INC_OP: ADDR_ACC    is (bbb=6) ... & ADDR_ACC  { export ADDR_ACC; }
 }
 
 # DEC 16 bit.
-:DEC DEC_INC_OP    is (is_m8=0 &
+:DEC DEC_INC_OP    is (ctx_MF=0 &
     (op=0x3a | op=0xce | op=0xc6 | op=0xde | op=0xd6)) ... & DEC_INC_OP
 {
     local result:2 = DEC_INC_OP:2 - 1;
@@ -868,7 +874,7 @@ DEC_INC_OP: ADDR_ACC    is (bbb=6) ... & ADDR_ACC  { export ADDR_ACC; }
 }
 
 # DEX 8 bit.
-:DEX    is (is_m8=1 & op=0xca)
+:DEX    is (ctx_MF=1 & op=0xca)
 {
     local result:1 = XLow - 1;
     flag8_NZ(result);
@@ -876,7 +882,7 @@ DEC_INC_OP: ADDR_ACC    is (bbb=6) ... & ADDR_ACC  { export ADDR_ACC; }
 }
 
 # DEX 16 bit.
-:DEX    is (is_m8=0 & op=0xca)
+:DEX    is (ctx_MF=0 & op=0xca)
 {
     local result:2 = X - 1;
     flag16_NZ(result);
@@ -884,7 +890,7 @@ DEC_INC_OP: ADDR_ACC    is (bbb=6) ... & ADDR_ACC  { export ADDR_ACC; }
 }
 
 # DEY 8 bit.
-:DEY    is (is_m8=1 & op=0x88)
+:DEY    is (ctx_MF=1 & op=0x88)
 {
     local result:1 = YLow - 1;
     flag8_NZ(result);
@@ -892,7 +898,7 @@ DEC_INC_OP: ADDR_ACC    is (bbb=6) ... & ADDR_ACC  { export ADDR_ACC; }
 }
 
 # DEY 16 bit.
-:DEY    is (is_m8=0 & op=0x88)
+:DEY    is (ctx_MF=0 & op=0x88)
 {
     local result:2 = Y - 1;
     flag16_NZ(result);
@@ -900,7 +906,7 @@ DEC_INC_OP: ADDR_ACC    is (bbb=6) ... & ADDR_ACC  { export ADDR_ACC; }
 }
 
 # EOR 8 bit.
-:EOR PRIMARY_OP    is (is_m8=1 &
+:EOR PRIMARY_OP    is (ctx_MF=1 &
     (op=0x49 | op=0x4d | op=0x4f | op=0x45 | op=0x52 | op=0x47 | op=0x5d |
      op=0x5f | op=0x59 | op=0x55 | op=0x41 | op=0x51 | op=0x57 | op=0x43 |
      op=0x53)) ... & PRIMARY_OP
@@ -912,7 +918,7 @@ DEC_INC_OP: ADDR_ACC    is (bbb=6) ... & ADDR_ACC  { export ADDR_ACC; }
 }
 
 # EOR 16 bit.
-:EOR PRIMARY_OP    is (is_m8=0 &
+:EOR PRIMARY_OP    is (ctx_MF=0 &
     (op=0x49 | op=0x4d | op=0x4f | op=0x45 | op=0x52 | op=0x47 | op=0x5d |
      op=0x5f | op=0x59 | op=0x55 | op=0x41 | op=0x51 | op=0x57 | op=0x43 |
      op=0x53)) ... & PRIMARY_OP
@@ -924,7 +930,7 @@ DEC_INC_OP: ADDR_ACC    is (bbb=6) ... & ADDR_ACC  { export ADDR_ACC; }
 }
 
 # INC 8 bit.
-:INC DEC_INC_OP    is (is_m8=1 &
+:INC DEC_INC_OP    is (ctx_MF=1 &
     (op=0x1a | op=0xee | op=0xe6 | op=0xfe | op=0xf6)) ... & DEC_INC_OP
 {
     local result:1 = DEC_INC_OP:1 + 1;
@@ -933,7 +939,7 @@ DEC_INC_OP: ADDR_ACC    is (bbb=6) ... & ADDR_ACC  { export ADDR_ACC; }
 }
 
 # INC 16 bit.
-:INC DEC_INC_OP    is (is_m8=0 &
+:INC DEC_INC_OP    is (ctx_MF=0 &
     (op=0x1a | op=0xee | op=0xe6 | op=0xfe | op=0xf6)) ... & DEC_INC_OP
 {
     local result:2 = DEC_INC_OP:2 + 1;
@@ -942,7 +948,7 @@ DEC_INC_OP: ADDR_ACC    is (bbb=6) ... & ADDR_ACC  { export ADDR_ACC; }
 }
 
 # INX 8 bit.
-:INX    is (is_m8=1 & op=0xe8)
+:INX    is (ctx_MF=1 & op=0xe8)
 {
     local result:1 = XLow + 1;
     flag8_NZ(result);
@@ -950,7 +956,7 @@ DEC_INC_OP: ADDR_ACC    is (bbb=6) ... & ADDR_ACC  { export ADDR_ACC; }
 }
 
 # INX 16 bit.
-:INX    is (is_m8=0 & op=0xe8)
+:INX    is (ctx_MF=0 & op=0xe8)
 {
     local result:2 = X + 1;
     flag16_NZ(result);
@@ -958,7 +964,7 @@ DEC_INC_OP: ADDR_ACC    is (bbb=6) ... & ADDR_ACC  { export ADDR_ACC; }
 }
 
 # INY 8 bit.
-:INY    is (is_m8=1 & op=0xc8)
+:INY    is (ctx_MF=1 & op=0xc8)
 {
     local result:1 = YLow + 1;
     flag8_NZ(result);
@@ -966,7 +972,7 @@ DEC_INC_OP: ADDR_ACC    is (bbb=6) ... & ADDR_ACC  { export ADDR_ACC; }
 }
 
 # INY 16 bit.
-:INY    is (is_m8=0 & op=0xc8)
+:INY    is (ctx_MF=0 & op=0xc8)
 {
     local result:2 = Y + 1;
     flag16_NZ(result);
@@ -974,7 +980,7 @@ DEC_INC_OP: ADDR_ACC    is (bbb=6) ... & ADDR_ACC  { export ADDR_ACC; }
 }
 
 # LDA 8 bit.
-:LDA PRIMARY_OP    is (is_m8=1 &
+:LDA PRIMARY_OP    is (ctx_MF=1 &
     (op=0xa9 | op=0xad | op=0xaf | op=0xa5 | op=0xb2 | op=0xa7 | op=0xbd |
      op=0xbf | op=0xb9 | op=0xb5 | op=0xa1 | op=0xb1 | op=0xb7 | op=0xa3 |
      op=0xb3)) ... & PRIMARY_OP
@@ -986,7 +992,7 @@ DEC_INC_OP: ADDR_ACC    is (bbb=6) ... & ADDR_ACC  { export ADDR_ACC; }
 }
 
 # LDA 16 bit.
-:LDA PRIMARY_OP    is (is_m8=0 &
+:LDA PRIMARY_OP    is (ctx_MF=0 &
     (op=0xa9 | op=0xad | op=0xaf | op=0xa5 | op=0xb2 | op=0xa7 | op=0xbd |
      op=0xbf | op=0xb9 | op=0xb5 | op=0xa1 | op=0xb1 | op=0xb7 | op=0xa3 |
      op=0xb3)) ... & PRIMARY_OP
@@ -1001,7 +1007,7 @@ LDX_OP: SEC_OP_Y    is (aaa=5) ... & SEC_OP_Y  { export SEC_OP_Y; }
 LDX_OP: ADDR_IMM    is (bbb=0) ... & ADDR_IMM  { export ADDR_IMM; }
 
 # LDX 8 bit.
-:LDX LDX_OP    is (is_m8=1 &
+:LDX LDX_OP    is (ctx_MF=1 &
     (op=0xa2 | op=0xae | op=0xa6 | op=0xbe | op=0xb6)) ... & LDX_OP
 {
     local data:1 = LDX_OP:1;
@@ -1010,7 +1016,7 @@ LDX_OP: ADDR_IMM    is (bbb=0) ... & ADDR_IMM  { export ADDR_IMM; }
 }
 
 # LDX 16 bit.
-:LDX LDX_OP    is (is_m8=0 &
+:LDX LDX_OP    is (ctx_MF=0 &
     (op=0xa2 | op=0xae | op=0xa6 | op=0xbe | op=0xb6)) ... & LDX_OP
 {
     local data:2 = LDX_OP;
@@ -1022,7 +1028,7 @@ LDY_OP: SEC_OP_X    is (aaa=5) ... & SEC_OP_X  { export SEC_OP_X; }
 LDY_OP: ADDR_IMM    is (bbb=0) ... & ADDR_IMM  { export ADDR_IMM; }
 
 # LDY 8 bit.
-:LDY LDY_OP    is (is_m8=1 &
+:LDY LDY_OP    is (ctx_MF=1 &
     (op=0xa0 | op=0xac | op=0xa4 | op=0xbc | op=0xb4)) ... & LDY_OP
 {
     local data:1 = LDY_OP:1;
@@ -1031,7 +1037,7 @@ LDY_OP: ADDR_IMM    is (bbb=0) ... & ADDR_IMM  { export ADDR_IMM; }
 }
 
 # LDY 16 bit.
-:LDY LDY_OP    is (is_m8=0 &
+:LDY LDY_OP    is (ctx_MF=0 &
     (op=0xa0 | op=0xac | op=0xa4 | op=0xbc | op=0xb4)) ... & LDY_OP
 {
     local data:2 = LDY_OP;
@@ -1040,7 +1046,7 @@ LDY_OP: ADDR_IMM    is (bbb=0) ... & ADDR_IMM  { export ADDR_IMM; }
 }
 
 # LSR 8 bit.
-:LSR SHIFT_OP    is (is_m8=1 &
+:LSR SHIFT_OP    is (ctx_MF=1 &
     (op=0x4a | op=0x4e | op=0x46 | op=0x5e | op=0x56)) ... & SHIFT_OP
 {
     local data:1 = SHIFT_OP:1;
@@ -1053,7 +1059,7 @@ LDY_OP: ADDR_IMM    is (bbb=0) ... & ADDR_IMM  { export ADDR_IMM; }
 }
 
 # LSR 16 bit.
-:LSR SHIFT_OP    is (is_m8=0 &
+:LSR SHIFT_OP    is (ctx_MF=0 &
     (op=0x4a | op=0x4e | op=0x46 | op=0x5e | op=0x56)) ... & SHIFT_OP
 {
     local data:2 = SHIFT_OP;
@@ -1066,7 +1072,7 @@ LDY_OP: ADDR_IMM    is (bbb=0) ... & ADDR_IMM  { export ADDR_IMM; }
 }
 
 # MVN 8 bit.
-:MVN srcbk,destbk    is (is_m8=1 & (op=0x54 ; destbk; srcbk))
+:MVN srcbk,destbk    is (ctx_MF=1 & (op=0x54 ; destbk; srcbk))
 {
     local src_bank:1 = srcbk;
     local dest_bank:1 = destbk;
@@ -1087,7 +1093,7 @@ LDY_OP: ADDR_IMM    is (bbb=0) ... & ADDR_IMM  { export ADDR_IMM; }
 }
 
 # MVN 16 bit.
-:MVN srcbk,destbk    is (is_m8=0 & (op=0x54 ; destbk; srcbk))
+:MVN srcbk,destbk    is (ctx_MF=0 & (op=0x54 ; destbk; srcbk))
 {
     local src_bank:1 = srcbk;
     local dest_bank:1 = destbk;
@@ -1108,7 +1114,7 @@ LDY_OP: ADDR_IMM    is (bbb=0) ... & ADDR_IMM  { export ADDR_IMM; }
 }
 
 # MVP 8 bit.
-:MVP srcbk,destbk    is (is_m8=1 & (op=0x44 ; destbk; srcbk))
+:MVP srcbk,destbk    is (ctx_MF=1 & (op=0x44 ; destbk; srcbk))
 {
     local src_bank:1 = srcbk;
     local dest_bank:1 = destbk;
@@ -1129,7 +1135,7 @@ LDY_OP: ADDR_IMM    is (bbb=0) ... & ADDR_IMM  { export ADDR_IMM; }
 }
 
 # MVP 16 bit.
-:MVP srcbk,destbk    is (is_m8=0 & (op=0x44 ; destbk; srcbk))
+:MVP srcbk,destbk    is (ctx_MF=0 & (op=0x44 ; destbk; srcbk))
 {
     local src_bank:1 = srcbk;
     local dest_bank:1 = destbk;
@@ -1152,7 +1158,7 @@ LDY_OP: ADDR_IMM    is (bbb=0) ... & ADDR_IMM  { export ADDR_IMM; }
 :NOP    is op=0xEA  {}
 
 # ORA 8 bit.
-:ORA PRIMARY_OP    is (is_m8=1 &
+:ORA PRIMARY_OP    is (ctx_MF=1 &
     (op=0x09 | op=0x0d | op=0x0f | op=0x05 | op=0x12 | op=0x07 | op=0x1d |
      op=0x1f | op=0x19 | op=0x15 | op=0x01 | op=0x11 | op=0x17 | op=0x03 |
      op=0x13)) ... & PRIMARY_OP
@@ -1164,7 +1170,7 @@ LDY_OP: ADDR_IMM    is (bbb=0) ... & ADDR_IMM  { export ADDR_IMM; }
 }
 
 # ORA 16 bit.
-:ORA PRIMARY_OP    is (is_m8=0 &
+:ORA PRIMARY_OP    is (ctx_MF=0 &
     (op=0x09 | op=0x0d | op=0x0f | op=0x05 | op=0x12 | op=0x07 | op=0x1d |
      op=0x1f | op=0x19 | op=0x15 | op=0x01 | op=0x11 | op=0x17 | op=0x03 |
      op=0x13)) ... & PRIMARY_OP
@@ -1200,13 +1206,13 @@ LDY_OP: ADDR_IMM    is (bbb=0) ... & ADDR_IMM  { export ADDR_IMM; }
 }
 
 # PHA 8 bit.
-:PHA    is (is_m8=1 & op=0x48)
+:PHA    is (ctx_MF=1 & op=0x48)
 {
     push8(A);
 }
 
 # PHA 8 bit.
-:PHA    is (is_m8=0 & op=0x48)
+:PHA    is (ctx_MF=0 & op=0x48)
 {
     push16(C);
 }
@@ -1227,50 +1233,50 @@ LDY_OP: ADDR_IMM    is (bbb=0) ... & ADDR_IMM  { export ADDR_IMM; }
 }
 
 # PHP native.
-:PHP    is (is_emu=0 & op=0x08)
+:PHP    is (ctx_EF=0 & op=0x08)
 {
     push_status_native();
 }
 
 # PHP emulation.
-:PHP    is (is_emu=1 & op=0x08)
+:PHP    is (ctx_EF=1 & op=0x08)
 {
     push_status_emulation();
 }
 
 # PHX 8 bit.
-:PHX    is (is_x8=1 & op=0xda)
+:PHX    is (ctx_XF=1 & op=0xda)
 {
     push8(XLow);
 }
 
 # PHX 16 bit.
-:PHX    is (is_x8=0 & op=0xda)
+:PHX    is (ctx_XF=0 & op=0xda)
 {
     push16(X);
 }
 
 # PHY 8 bit.
-:PHY    is (is_x8=1 & op=0x5a)
+:PHY    is (ctx_XF=1 & op=0x5a)
 {
     push8(YLow);
 }
 
 # PHY 16 bit.
-:PHY    is (is_x8=0 & op=0x5a)
+:PHY    is (ctx_XF=0 & op=0x5a)
 {
     push16(Y);
 }
 
 # PLA 8 bit.
-:PLA    is (is_m8=1 & op=0x68)
+:PLA    is (ctx_MF=1 & op=0x68)
 {
     pull8(A);
     flag8_NZ(A);
 }
 
 # PLA 16 bit.
-:PLA    is (is_m8=0 & op=0x68)
+:PLA    is (ctx_MF=0 & op=0x68)
 {
     pull16(C);
     flag16_NZ(C);
@@ -1288,54 +1294,54 @@ LDY_OP: ADDR_IMM    is (bbb=0) ... & ADDR_IMM  { export ADDR_IMM; }
     flag16_NZ(DP);
 }
 
-# PLP native.
-:PLP    is (is_emu=0 & op=0x28)
+# PLP native. Does not support setting the context flags MF, XF, DF.
+:PLP    is (ctx_EF=0 & op=0x28)
 {
     pull_status_native();
 }
 
-# PLP emulation.
-:PLP    is (is_emu=1 & op=0x28)
+# PLP emulation. Does not support setting the context flag DF.
+:PLP    is (ctx_EF=1 & op=0x28)
 {
     pull_status_emulation();
 }
 
 # PLX 8 bit.
-:PLX    is (is_x8=1 & op=0xfa)
+:PLX    is (ctx_XF=1 & op=0xfa)
 {
     pull8(XLow);
     flag8_NZ(XLow);
 }
 
 # PLX 16 bit.
-:PLX    is (is_x8=0 & op=0xfa)
+:PLX    is (ctx_XF=0 & op=0xfa)
 {
     pull16(X);
     flag16_NZ(X);
 }
 
 # PLY 8 bit.
-:PLY    is (is_x8=1 & op=0x7a)
+:PLY    is (ctx_XF=1 & op=0x7a)
 {
     pull8(YLow);
     flag8_NZ(YLow);
 }
 
 # PLY 16 bit.
-:PLY    is (is_x8=0 & op=0x7a)
+:PLY    is (ctx_XF=0 & op=0x7a)
 {
     pull16(Y);
     flag16_NZ(Y);
 }
 
 # SBC with decimal mode is unimplemented.
-:SBC PRIMARY_OP    is (is_dec=1 &
+:SBC PRIMARY_OP    is (ctx_DF=1 &
     (op=0xe9 | op=0xed | op=0xef | op=0xe5 | op=0xf2 | op=0xe7 | op=0xfd |
      op=0xff | op=0xf9 | op=0xf5 | op=0xe1 | op=0xf1 | op=0xf7 | op=0xe3 |
      op=0xf3)) ... & PRIMARY_OP  unimpl
 
 # SBC 8 bit binary.
-:SBC PRIMARY_OP    is (is_dec=0 & is_m8=1 &
+:SBC PRIMARY_OP    is (ctx_DF=0 & ctx_MF=1 &
     (op=0xe9 | op=0xed | op=0xef | op=0xe5 | op=0xf2 | op=0xe7 | op=0xfd |
      op=0xff | op=0xf9 | op=0xf5 | op=0xe1 | op=0xf1 | op=0xf7 | op=0xe3 |
      op=0xf3)) ... & PRIMARY_OP
@@ -1353,7 +1359,7 @@ LDY_OP: ADDR_IMM    is (bbb=0) ... & ADDR_IMM  { export ADDR_IMM; }
 }
 
 # SBC 16 bit binary.
-:SBC PRIMARY_OP    is (is_dec=0 & is_m8=0 &
+:SBC PRIMARY_OP    is (ctx_DF=0 & ctx_MF=0 &
     (op=0xe9 | op=0xed | op=0xef | op=0xe5 | op=0xf2 | op=0xe7 | op=0xfd |
      op=0xff | op=0xf9 | op=0xf5 | op=0xe1 | op=0xf1 | op=0xf7 | op=0xe3 |
      op=0xf3)) ... & PRIMARY_OP
@@ -1371,7 +1377,7 @@ LDY_OP: ADDR_IMM    is (bbb=0) ... & ADDR_IMM  { export ADDR_IMM; }
 }
 
 # STA 8 bit.
-:STA PRIMARY_OP_NO_IMM    is (is_m8=1 &
+:STA PRIMARY_OP_NO_IMM    is (ctx_MF=1 &
     (op=0x8d | op=0x8f | op=0x85 | op=0x92 | op=0x87 | op=0x9d |
      op=0x9f | op=0x99 | op=0x95 | op=0x81 | op=0x91 | op=0x97 |
      op=0x83 | op=0x93)) ... & PRIMARY_OP_NO_IMM
@@ -1380,7 +1386,7 @@ LDY_OP: ADDR_IMM    is (bbb=0) ... & ADDR_IMM  { export ADDR_IMM; }
 }
 
 # STA 16 bit.
-:STA PRIMARY_OP_NO_IMM    is (is_m8=0 &
+:STA PRIMARY_OP_NO_IMM    is (ctx_MF=0 &
     (op=0x8d | op=0x8f | op=0x85 | op=0x92 | op=0x87 | op=0x9d |
      op=0x9f | op=0x99 | op=0x95 | op=0x81 | op=0x91 | op=0x97 |
      op=0x83 | op=0x93)) ... & PRIMARY_OP_NO_IMM
