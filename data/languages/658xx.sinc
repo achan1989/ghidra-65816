@@ -626,7 +626,10 @@ SEC_OP_Y: ADDR_DP_IDX_Y    is bbb=5; ADDR_DP_IDX_Y  { export ADDR_DP_IDX_Y; }
 }
 
 # AND 8 bit.
-:AND PRIMARY_OP    is (aaa=1 & is_m8=1) ... & PRIMARY_OP
+:AND PRIMARY_OP    is (is_m8=1 &
+    (op=0x29 | op=0x2d | op=0x2f | op=0x25 | op=0x32 | op=0x27 | op=0x3d |
+     op=0x3f | op=0x39 | op=0x35 | op=0x21 | op=0x31 | op=0x37 | op=0x23 |
+     op=0x33)) ... & PRIMARY_OP
 {
     local data:1 = PRIMARY_OP:1;
 
@@ -635,7 +638,10 @@ SEC_OP_Y: ADDR_DP_IDX_Y    is bbb=5; ADDR_DP_IDX_Y  { export ADDR_DP_IDX_Y; }
 }
 
 # AND 16 bit.
-:AND PRIMARY_OP    is (aaa=1 & is_m8=0) ... & PRIMARY_OP
+:AND PRIMARY_OP    is (is_m8=0 &
+    (op=0x29 | op=0x2d | op=0x2f | op=0x25 | op=0x32 | op=0x27 | op=0x3d |
+     op=0x3f | op=0x39 | op=0x35 | op=0x21 | op=0x31 | op=0x37 | op=0x23 |
+     op=0x33)) ... & PRIMARY_OP
 {
     local data:2 = PRIMARY_OP:2;
 
