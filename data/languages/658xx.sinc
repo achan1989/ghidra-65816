@@ -567,10 +567,16 @@ SEC_OP_Y: ADDR_DP_IDX_Y    is bbb=5; ADDR_DP_IDX_Y  { export ADDR_DP_IDX_Y; }
 # Begin instructions.
 
 # ADC with decimal mode is unimplemented.
-:ADC PRIMARY_OP    is (aaa=3 & is_dec=1) ... & PRIMARY_OP  unimpl
+:ADC PRIMARY_OP    is (is_dec=1 &
+    (op=0x69 | op=0x6d | op=0x6f | op=0x65 | op=0x72 | op=0x67 | op=0x7d |
+     op=0x7f | op=0x79 | op=0x75 | op=0x61 | op=0x71 | op=0x77 | op=0x63 |
+     op=0x73)) ... & PRIMARY_OP  unimpl
 
 # ADC 8 bit binary.
-:ADC PRIMARY_OP    is (aaa=3 & is_dec=0 & is_m8=1) ... & PRIMARY_OP
+:ADC PRIMARY_OP    is (is_dec=0 & is_m8=1 &
+    (op=0x69 | op=0x6d | op=0x6f | op=0x65 | op=0x72 | op=0x67 | op=0x7d |
+     op=0x7f | op=0x79 | op=0x75 | op=0x61 | op=0x71 | op=0x77 | op=0x63 |
+     op=0x73)) ... & PRIMARY_OP
 {
     local data:1 = PRIMARY_OP:1;
     local result:4;
@@ -585,7 +591,10 @@ SEC_OP_Y: ADDR_DP_IDX_Y    is bbb=5; ADDR_DP_IDX_Y  { export ADDR_DP_IDX_Y; }
 }
 
 # ADC 16 bit binary.
-:ADC PRIMARY_OP    is (aaa=3 & is_dec=0 & is_m8=0) ... & PRIMARY_OP
+:ADC PRIMARY_OP    is (is_dec=0 & is_m8=0 &
+    (op=0x69 | op=0x6d | op=0x6f | op=0x65 | op=0x72 | op=0x67 | op=0x7d |
+     op=0x7f | op=0x79 | op=0x75 | op=0x61 | op=0x71 | op=0x77 | op=0x63 |
+     op=0x73)) ... & PRIMARY_OP
 {
     local data:2 = PRIMARY_OP:2;
     local result:4;
