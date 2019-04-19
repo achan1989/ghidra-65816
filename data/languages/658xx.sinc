@@ -1126,6 +1126,8 @@ LDY_OP: ADDR_IMM    is (bbb=0) ... & ADDR_IMM  { export ADDR_IMM; }
     if (C != 0xFFFF) goto <move_loop>;
 }
 
+:NOP    is op=0xEA  {}
+
 # ORA 8 bit.
 :ORA PRIMARY_OP    is (is_m8=1 &
     (op=0x09 | op=0x0d | op=0x0f | op=0x05 | op=0x12 | op=0x07 | op=0x1d |
