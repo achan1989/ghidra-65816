@@ -1262,6 +1262,72 @@ LDY_OP: ADDR_IMM    is (bbb=0) ... & ADDR_IMM  { export ADDR_IMM; }
     push16(Y);
 }
 
+# PLA 8 bit.
+:PLA    is (is_m8=1 & op=0x68)
+{
+    pull8(A);
+    flag8_NZ(A);
+}
+
+# PLA 16 bit.
+:PLA    is (is_m8=0 & op=0x68)
+{
+    pull16(C);
+    flag16_NZ(C);
+}
+
+:PLB    is op=0xab
+{
+    pull8(DBR);
+    flag8_NZ(DBR);
+}
+
+:PLD    is op=0x2b
+{
+    pull16(DP);
+    flag16_NZ(DP);
+}
+
+# PLP native.
+:PLP    is (is_emu=0 & op=0x28)
+{
+    pull_status_native();
+}
+
+# PLP emulation.
+:PLP    is (is_emu=1 & op=0x28)
+{
+    pull_status_emulation();
+}
+
+# PLX 8 bit.
+:PLX    is (is_x8=1 & op=0xfa)
+{
+    pull8(XLow);
+    flag8_NZ(XLow);
+}
+
+# PLX 16 bit.
+:PLX    is (is_x8=0 & op=0xfa)
+{
+    pull16(X);
+    flag16_NZ(X);
+}
+
+# PLY 8 bit.
+:PLY    is (is_x8=1 & op=0x7a)
+{
+    pull8(YLow);
+    flag8_NZ(YLow);
+}
+
+# PLY 16 bit.
+:PLY    is (is_x8=0 & op=0x7a)
+{
+    pull16(Y);
+    flag16_NZ(Y);
+}
+
 # SBC with decimal mode is unimplemented.
 :SBC PRIMARY_OP    is (is_dec=1 &
     (op=0xe9 | op=0xed | op=0xef | op=0xe5 | op=0xf2 | op=0xe7 | op=0xfd |
