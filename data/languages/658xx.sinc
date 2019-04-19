@@ -1193,6 +1193,69 @@ LDY_OP: ADDR_IMM    is (bbb=0) ... & ADDR_IMM  { export ADDR_IMM; }
     push16(data);
 }
 
+# PHA 8 bit.
+:PHA    is (is_m8=1 & op=0x48)
+{
+    push8(A);
+}
+
+# PHA 8 bit.
+:PHA    is (is_m8=0 & op=0x48)
+{
+    push16(C);
+}
+
+:PHB    is op=0x8b
+{
+    push8(DBR);
+}
+
+:PHD    is op=0x0b
+{
+    push16(DP);
+}
+
+:PHK    is op=0x4b
+{
+    push8(PBR);
+}
+
+# PHP native.
+:PHP    is (is_emu=0 & op=0x08)
+{
+    push_status_native();
+}
+
+# PHP emulation.
+:PHP    is (is_emu=1 & op=0x08)
+{
+    push_status_emulation();
+}
+
+# PHX 8 bit.
+:PHX    is (is_x8=1 & op=0xda)
+{
+    push8(XLow);
+}
+
+# PHX 16 bit.
+:PHX    is (is_x8=0 & op=0xda)
+{
+    push16(X);
+}
+
+# PHY 8 bit.
+:PHY    is (is_x8=1 & op=0x5a)
+{
+    push8(YLow);
+}
+
+# PHY 16 bit.
+:PHY    is (is_x8=0 & op=0x5a)
+{
+    push16(Y);
+}
+
 # SBC with decimal mode is unimplemented.
 :SBC PRIMARY_OP    is (is_dec=1 &
     (op=0xe9 | op=0xed | op=0xef | op=0xe5 | op=0xf2 | op=0xe7 | op=0xfd |
