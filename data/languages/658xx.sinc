@@ -40,6 +40,7 @@ define token opbyte (8)
    aaa      = (5,7)
    bbb      = (2,4)
    cc       = (0,1)
+   dd       = (2,3)
 ;
 
 define token data8 (8)
@@ -1824,8 +1825,38 @@ STZ_OP: ADDR_DP_IDX_X    is op=0x74; ADDR_DP_IDX_X  { export ADDR_DP_IDX_X; }
     flag16_NZ(DP);
 }
 
-# TODO TRB
-# TODO TSB
+TEST_OP: ADDR_ABS    is dd=3; ADDR_ABS  { export ADDR_ABS; }
+TEST_OP: ADDR_DP    is dd=1; ADDR_DP  { export ADDR_DP; }
+
+# TRB 8 bit.
+:TRB TEST_OP    is ctx_MF=1 & (op=0x1c | op=0x14) ... & TEST_OP
+{
+    local data:1 = TEST_OP:1;
+    TEST_OP[0,8] = data & ~A;
+    flag8_Z(data & A);
+}
+# TRB 16 bit.
+:TRB TEST_OP    is ctx_MF=0 & (op=0x1c | op=0x14) ... & TEST_OP
+{
+    local data:2 = TEST_OP;
+    TEST_OP = data & ~C;
+    flag16_Z(data & C);
+}
+
+# TSB 8 bit.
+:TSB TEST_OP    is ctx_MF=1 & (op=0x0c | op=0x04) ... & TEST_OP
+{
+    local data:1 = TEST_OP:1;
+    TEST_OP[0,8] = data | A;
+    flag8_Z(data & A);
+}
+# TSB 16 bit.
+:TSB TEST_OP    is ctx_MF=0 & (op=0x0c | op=0x04) ... & TEST_OP
+{
+    local data:2 = TEST_OP;
+    TEST_OP = data | C;
+    flag16_Z(data & C);
+}
 
 :TSC    is op=0x3b
 {
