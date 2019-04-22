@@ -591,43 +591,105 @@ SEC_OP_Y: ADDR_DP_IDX_Y    is bbb=5; ADDR_DP_IDX_Y  { export ADDR_DP_IDX_Y; }
 
 # Begin instructions.
 
-# ADC with decimal mode is unimplemented.
-:ADC PRIMARY_OP    is (ctx_DF=1 &
-    (op=0x69 | op=0x6d | op=0x6f | op=0x65 | op=0x72 | op=0x67 | op=0x7d |
-     op=0x7f | op=0x79 | op=0x75 | op=0x61 | op=0x71 | op=0x77 | op=0x63 |
-     op=0x73)) ... & PRIMARY_OP  unimpl
-
 # ADC 8 bit binary.
-:ADC PRIMARY_OP    is (ctx_DF=0 & ctx_MF=1 &
+:ADC PRIMARY_OP    is (ctx_MF=1 &
     (op=0x69 | op=0x6d | op=0x6f | op=0x65 | op=0x72 | op=0x67 | op=0x7d |
      op=0x7f | op=0x79 | op=0x75 | op=0x61 | op=0x71 | op=0x77 | op=0x63 |
      op=0x73)) ... & PRIMARY_OP
 {
+    local is_dec:1 = DF == 1;
+    local not_dec:1 = DF == 0;
+    local do_skip_dec_adjust:1;
     local data:1 = PRIMARY_OP:1;
     local result:4;
 
-    result = zext(A) + zext(data) + zext(CF);
-    VF = (~zext(A ^ data) & (zext(A) ^ result) & 0x80) != 0;
-    CF = result s> 0xFF;
+    if (is_dec) goto <decimal>;
 
+    <binary>
+    result = zext(A) + zext(data) + zext(CF);
+    goto <flags>;
+
+    <decimal>
+    # Units.
+    result = (zext(A) & 0x0f) + (zext(data) & 0x0f) + zext(CF);
+    do_skip_dec_adjust = (result s<= 0x09);
+    if (do_skip_dec_adjust) goto <skip_dec_adjust>;
+    result = result + 0x06;
+    <skip_dec_adjust>
+    CF = (result s> 0x0f);
+
+    # Tens.
+    result = (zext(A) & 0xf0) + (zext(data) & 0xf0) + (zext(CF) << 4) + (result & 0x0f);
+
+    <flags>
+    VF = (~zext(A ^ data) & (zext(A) ^ result) & 0x80) != 0;
+    # Do this ridiculous dance to properly infer sizes, otherwise we get
+    # "Output must be a boolean" errors...
+    local too_small:1 = result s<= 0x9f;
+    do_skip_dec_adjust = (not_dec || too_small);
+    if (do_skip_dec_adjust) goto <skip_dec_adjust_flags>;
+    result = result + 0x60;
+    <skip_dec_adjust_flags>
+    CF = result s> 0xFF;
     local result8:1 = result:1;
     flag8_NZ(result8);
     A = result8;
 }
 
 # ADC 16 bit binary.
-:ADC PRIMARY_OP    is (ctx_DF=0 & ctx_MF=0 &
+:ADC PRIMARY_OP    is (ctx_MF=0 &
     (op=0x69 | op=0x6d | op=0x6f | op=0x65 | op=0x72 | op=0x67 | op=0x7d |
      op=0x7f | op=0x79 | op=0x75 | op=0x61 | op=0x71 | op=0x77 | op=0x63 |
      op=0x73)) ... & PRIMARY_OP
 {
+    local is_dec:1 = DF == 1;
+    local not_dec:1 = DF == 0;
+    local do_skip_dec_adjust:1;
     local data:2 = PRIMARY_OP:2;
     local result:4;
 
-    result = zext(C) + zext(data) + zext(CF);
-    VF = (~zext(C ^ data) & (zext(C) ^ result) & 0x8000) != 0;
-    CF = result s> 0xFFFF;
+    if (is_dec) goto <decimal>;
 
+    <binary>
+    result = zext(C) + zext(data) + zext(CF);
+    goto <flags>;
+
+    <decimal>
+    # Units.
+    result = (zext(C) & 0x0f) + (zext(data) & 0x0f) + zext(CF);
+    do_skip_dec_adjust = (result s<= 0x09);
+    if (do_skip_dec_adjust) goto <skip_dec_adjust_1>;
+    result = result + 0x06;
+    <skip_dec_adjust_1>
+    CF = result s> 0x0f;
+
+    # Tens.
+    result = (zext(C) & 0xf0) + (zext(data) & 0xf0) + (zext(CF) << 4) + (result & 0x0f);
+    do_skip_dec_adjust = (result s<= 0x9f);
+    if (do_skip_dec_adjust) goto <skip_dec_adjust_2>;
+    result = result + 0x60;
+    <skip_dec_adjust_2>
+    CF = result s> 0xff;
+
+    # Hundreds.
+    result = (zext(C) & 0x0f00) + (zext(data) & 0x0f00) + (zext(CF) << 8) + (result & 0xff);
+    do_skip_dec_adjust = (result s<= 0x09ff);
+    if (do_skip_dec_adjust) goto <skip_dec_adjust_3>;
+    result = result + 0x0600;
+    <skip_dec_adjust_3>
+    CF = result s> 0x0fff;
+
+    # Thousands.
+    result = (zext(C) & 0xf000) + (zext(data) & 0xf000) + (zext(CF) << 12) + (result & 0x0fff);
+
+    <flags>
+    VF = ((~zext(C ^ data)) & (zext(C) ^ result) & 0x8000) != 0;
+    local too_small:1 = (result s<= 0x9fff);
+    do_skip_dec_adjust = (not_dec || too_small);
+    if (do_skip_dec_adjust) goto <skip_dec_adjust_flags>;
+    result = result + 0x6000;
+    <skip_dec_adjust_flags>
+    CF = result s> 0xFFFF;
     local result16:2 = result:2;
     flag16_NZ(result16);
     C = result16;
@@ -1336,43 +1398,99 @@ LDY_OP: ADDR_IMM    is (bbb=0) ... & ADDR_IMM  { export ADDR_IMM; }
     flag16_NZ(Y);
 }
 
-# SBC with decimal mode is unimplemented.
-:SBC PRIMARY_OP    is (ctx_DF=1 &
-    (op=0xe9 | op=0xed | op=0xef | op=0xe5 | op=0xf2 | op=0xe7 | op=0xfd |
-     op=0xff | op=0xf9 | op=0xf5 | op=0xe1 | op=0xf1 | op=0xf7 | op=0xe3 |
-     op=0xf3)) ... & PRIMARY_OP  unimpl
-
 # SBC 8 bit binary.
-:SBC PRIMARY_OP    is (ctx_DF=0 & ctx_MF=1 &
+:SBC PRIMARY_OP    is (ctx_MF=1 &
     (op=0xe9 | op=0xed | op=0xef | op=0xe5 | op=0xf2 | op=0xe7 | op=0xfd |
      op=0xff | op=0xf9 | op=0xf5 | op=0xe1 | op=0xf1 | op=0xf7 | op=0xe3 |
      op=0xf3)) ... & PRIMARY_OP
 {
+    local is_dec:1 = DF == 1;
+    local not_dec:1 = DF == 0;
+    local do_skip_dec_adjust:1;
     local data:1 = ~(PRIMARY_OP:1);
     local result:4;
 
-    result = zext(A) + zext(data) + zext(CF);
-    VF = (~zext(A ^ data) & (zext(A) ^ result) & 0x80) != 0;
-    CF = result s> 0xFF;
+    if (is_dec) goto <decimal>;
 
+    <binary>
+    result = zext(A) + zext(data) + zext(CF);
+    goto <flags>;
+
+    <decimal>
+    # Units.
+    result = (zext(A) & 0x0f) + (zext(data) & 0x0f) + zext(CF);
+    do_skip_dec_adjust = (result s> 0x0f);
+    if (do_skip_dec_adjust) goto <skip_dec_adjust>;
+    result = result - 0x06;
+    <skip_dec_adjust>
+    CF = (result s> 0x0f);
+    # Tens.
+    result = (zext(A) & 0xf0) + (zext(data) & 0xf0) + (zext(CF) << 4) + (result & 0x0f);
+
+    <flags>
+    VF = (~zext(A ^ data) & (zext(A) ^ result) & 0x80) != 0;
+    local too_big:1 = (result s> 0xff);
+    do_skip_dec_adjust = (not_dec || too_big);
+    if (do_skip_dec_adjust) goto <skip_dec_adjust_flags>;
+    result = result - 0x60;
+    <skip_dec_adjust_flags>
+    CF = result s> 0xFF;
     result8:1 = result:1;
     flag8_NZ(result8);
     A = result8;
 }
 
 # SBC 16 bit binary.
-:SBC PRIMARY_OP    is (ctx_DF=0 & ctx_MF=0 &
+:SBC PRIMARY_OP    is (ctx_MF=0 &
     (op=0xe9 | op=0xed | op=0xef | op=0xe5 | op=0xf2 | op=0xe7 | op=0xfd |
      op=0xff | op=0xf9 | op=0xf5 | op=0xe1 | op=0xf1 | op=0xf7 | op=0xe3 |
      op=0xf3)) ... & PRIMARY_OP
 {
+    local is_dec:1 = DF == 1;
+    local not_dec:1 = DF == 0;
+    local do_skip_dec_adjust:1;
     local data:2 = ~(PRIMARY_OP:2);
     local result:4;
 
-    result = zext(C) + zext(data) + zext(CF);
-    VF = (~zext(C ^ data) & (zext(C) ^ result) & 0x8000) != 0;
-    CF = result s> 0xFFFF;
+    if (is_dec) goto <decimal>;
 
+    <binary>
+    result = zext(C) + zext(data) + zext(CF);
+    goto <flags>;
+
+    <decimal>
+    # Units.
+    result = (zext(C) & 0x0f) + (zext(data) & 0x0f) + zext(CF);
+    do_skip_dec_adjust = (result s> 0x0f);
+    if (do_skip_dec_adjust) goto <skip_dec_adjust_1>;
+    result = result - 0x06;
+    <skip_dec_adjust_1>
+    CF = (result s> 0x0f);
+    # Tens.
+    result= (zext(C) & 0xf0) + (zext(data) & 0xf0) + (zext(CF) << 4) + (result & 0x0f);
+    do_skip_dec_adjust = (result s> 0xff);
+    if (do_skip_dec_adjust) goto <skip_dec_adjust_2>;
+    result = result - 0x60;
+    <skip_dec_adjust_2>
+    CF = (result s> 0xff);
+    # Hundreds.
+    result = (zext(C) & 0x0f00) + (zext(data) & 0x0f00) + (zext(CF) << 8) + (result & 0xff);
+    do_skip_dec_adjust = (result s> 0x0fff);
+    if (do_skip_dec_adjust) goto <skip_dec_adjust_3>;
+    result = result - 0x0600;
+    <skip_dec_adjust_3>
+    CF = (result s> 0x0fff);
+    # Thousands
+    result = (zext(C) & 0xf000) + (zext(data) & 0xf000) + (zext(CF) << 12) + (result & 0x0fff);
+
+    <flags>
+    VF = (~zext(C ^ data) & (zext(C) ^ result) & 0x8000) != 0;
+    local too_big:1 = (result s> 0xffff);
+    do_skip_dec_adjust = (not_dec || too_big);
+    if (do_skip_dec_adjust) goto <skip_dec_adjust_flags>;
+    result = result - 0x6000;
+    <skip_dec_adjust_flags>
+    CF = (result s> 0xFFFF);
     local result16:2 = result:2;
     flag16_NZ(result16);
     C = result16;
