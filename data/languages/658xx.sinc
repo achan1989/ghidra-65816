@@ -12,7 +12,7 @@ define register offset=0x00  size=2  [ PC ];
 define register offset=0x02  size=1  [ PBR ];
 
 define register offset=0x10  size=2  [ C   X      Y      DP  SP ];
-define register offset=0x10  size=1  [ A B XLow _ YLow _ _ _ _ _ ];
+define register offset=0x10  size=1  [ A B XLow _ YLow _ _ _ SPLow SPHigh ];
 define register offset=0x20  size=1  [ DBR ];
 
 # Status flags.
@@ -1773,4 +1773,156 @@ STZ_OP: ADDR_DP_IDX_X    is op=0x74; ADDR_DP_IDX_X  { export ADDR_DP_IDX_X; }
 :STZ STZ_OP    is (ctx_MF=0 & (op=0x9c | op=0x64 | op=0x9e | op=0x74)) ... & STZ_OP
 {
     STZ_OP = 0:2;
+}
+
+# TAX  8 -> 8  or  16 -> 8
+:TAX    is op=0xaa & ctx_XF=1
+{
+    XLow = A;
+    flag8_NZ(A);
+}
+# TAX  8 -> 16  or  16 -> 16
+:TAX    is op=0xaa & ctx_XF=0
+{
+    X = C;
+    flag16_NZ(C);
+}
+
+# TAY  8 -> 8  or  16 -> 8
+:TAY    is op=0xa8 & ctx_XF=1
+{
+    YLow = A;
+    flag8_NZ(A);
+}
+# TAY  8 -> 16  or  16 -> 16
+:TAY    is op=0xa8 & ctx_XF=0
+{
+    Y = C;
+    flag16_NZ(C);
+}
+
+:TCD    is op=0x5b
+{
+    DP = C;
+    flag16_NZ(C);
+}
+
+# TCS native.
+:TCS    is (ctx_EF=0 & op=0x1b)
+{
+    SP = C;
+}
+# TCS emulation.
+:TCS    is (ctx_EF=1 & op=0x1b)
+{
+    SPLow = A;
+}
+
+:TDC    is op=0x7b
+{
+    C = DP;
+    flag16_NZ(DP);
+}
+
+# TODO TRB
+# TODO TSB
+
+:TSC    is op=0x3b
+{
+    C = SP;
+    flag16_NZ(SP);
+}
+
+# TSX 8 bit.
+:TSX    is (ctx_XF=1 & op=0xba)
+{
+    XLow = SPLow;
+    flag8_NZ(SPLow);
+}
+# TSX 16 bit.
+:TSX    is (ctx_XF=0 & op=0xba)
+{
+    X = SP;
+    flag16_NZ(SP);
+}
+
+# TXA  8 -> 8  or  16 -> 8
+:TXA    is op=0x8a & ctx_MF=1
+{
+    A = XLow;
+    flag8_NZ(XLow);
+}
+# TXA  8 -> 16
+:TXA    is op=0x8a & ctx_XF=1 & ctx_MF=0
+{
+    C = zext(XLow);
+    flag8_NZ(XLow);
+}
+# TXA  16 -> 16
+:TXA    is op=0x8a & ctx_XF=0 & ctx_MF=0
+{
+    C = X;
+    flag16_NZ(X);
+}
+
+# TXS emulation.
+:TXS    is op=0x9a & ctx_EF=1
+{
+    SPLow = XLow;
+}
+# TXS native  16 -> 8
+:TXS    is op=0x9a & ctx_EF=0 & ctx_XF=1
+{
+    SPLow = XLow;
+    SPHigh = 0;
+}
+# TXS native  16 -> 16
+:TXS    is op=0x9a & ctx_EF=0 & ctx_XF=0
+{
+    SP = X;
+}
+
+# TXY 8 bit.
+:TXY    is ctx_XF=1 & op=0x9b
+{
+    YLow = XLow;
+    flag8_NZ(XLow);
+}
+# TXY 16 bit.
+:TXY    is ctx_XF=0 & op=0x9b
+{
+    Y = X;
+    flag16_NZ(X);
+}
+
+# TYA  8 -> 8  or  16 -> 8
+:TYA    is op=0x98 & ctx_MF=1
+{
+    A = YLow;
+    flag8_NZ(YLow);
+}
+# TYA  8 -> 16
+:TYA    is op=0x98 & ctx_XF=1 & ctx_MF=0
+{
+    C = zext(YLow);
+    flag8_NZ(YLow);
+}
+# TYA  16 -> 16
+:TYA    is op=0x98 & ctx_XF=0 & ctx_MF=0
+{
+    C = Y;
+    flag16_NZ(Y);
+}
+
+# TYX 8 bit.
+:TYX    is ctx_XF=1 & op=0xbb
+{
+    XLow = YLow;
+    flag8_NZ(YLow);
+}
+# TYX 16 bit.
+:TYX    is ctx_XF=0 & op=0xbb
+{
+    X = Y;
+    flag16_NZ(Y);
 }
