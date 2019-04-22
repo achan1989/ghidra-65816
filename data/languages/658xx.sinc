@@ -1957,3 +1957,13 @@ TEST_OP: ADDR_DP    is dd=1; ADDR_DP  { export ADDR_DP; }
     X = Y;
     flag16_NZ(Y);
 }
+
+# WAI will either jump to various interrupt vectors, or continue to the next instruction,
+# depending on IF and the interrupt type.
+define pcodeop wai;
+:WAI    is op=0xcb
+{
+    wai();
+}
+
+:WDM    is op=0x42; imm8  {}
