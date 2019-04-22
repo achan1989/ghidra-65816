@@ -1711,3 +1711,11 @@ macro do_sep(op_nf, op_vf, op_df, op_if, op_zf, op_cf) {
 {
     PRIMARY_OP_NO_IMM = C;
 }
+
+define pcodeop stop;
+:STP    is op=0xdb
+{
+    stop();
+    local target:3 = zext(*:2 0x00FFFC:3);
+    goto [target];
+}
