@@ -11,8 +11,8 @@ define register offset=0x00  size=3  [ PC_FULL ];
 define register offset=0x00  size=2  [ PC ];
 define register offset=0x02  size=1  [ PBR ];
 
-define register offset=0x10  size=2  [ C   X      Y      DP  SP ];
-define register offset=0x10  size=1  [ A B XLow _ YLow _ _ _ SPLow SPHigh ];
+define register offset=0x10  size=2  [ C   X          Y          DP  SP ];
+define register offset=0x10  size=1  [ A B XLow XHigh YLow YHigh _ _ SPLow SPHigh ];
 define register offset=0x20  size=1  [ DBR ];
 
 # Status flags.
@@ -1967,3 +1967,61 @@ define pcodeop wai;
 }
 
 :WDM    is op=0x42; imm8  {}
+
+:XBA    is op=0xeb
+{
+    local old_b:1 = A;
+    B = A;
+    A = old_b;
+    flag8_NZ(old_b);
+}
+
+# XCE native -> ?
+:XCE    is ctx_EF=0 & op=0xfb
+    [ ctx_EF=CF; globalset(inst_next, ctx_EF);
+      ctx_MF=1; globalset(inst_next, ctx_MF);
+      ctx_XF=1; globalset(inst_next, ctx_XF); ]
+{
+    local is_to_native:1 = (CF == 0);
+    if (is_to_native) goto <to_native>;
+
+    <to_emulation>
+    XHigh = 0;
+    YHigh = 0;
+    SPHigh = 1;
+    goto <end>;
+
+    <to_native>
+    # It's not clear what happens when XCE re-switches into the current mode.
+    # I've assumed everything happens just as it would in a "real" mode switch.
+    XHigh = 0;
+    YHigh = 0;
+
+    <end>
+    CF = 0;
+}
+
+# XCE emulation -> ?
+:XCE    is ctx_EF=1 & op=0xfb
+    [ ctx_EF=CF; globalset(inst_next, ctx_EF);
+      ctx_MF=1; globalset(inst_next, ctx_MF);
+      ctx_XF=1; globalset(inst_next, ctx_XF); ]
+{
+    local is_to_native:1 = (CF == 0);
+    if (is_to_native) goto <to_native>;
+
+    <to_emulation>
+    # It's not clear what happens when XCE re-switches into the current mode.
+    # I've assumed everything happens just as it would in a "real" mode switch.
+    XHigh = 0;
+    YHigh = 0;
+    SPHigh = 1;
+    goto <end>;
+
+    <to_native>
+    XHigh = 0;
+    YHigh = 0;
+
+    <end>
+    CF = 1;
+}
