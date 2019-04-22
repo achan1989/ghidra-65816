@@ -207,16 +207,19 @@ macro pull8(var8) {
 
 macro pull16(var16) {
     local sp:3;
+    local temp:2;
 
     # Low byte.
     SP = SP + 1;
     sp = zext(SP);
-    var16[0,8] = *:1 sp;
+    temp[0,8] = *:1 sp;
 
     # High byte.
     SP = SP + 1;
     sp = zext(SP);
-    var16[8,8] = *:1 sp;
+    temp[8,8] = *:1 sp;
+
+    var16 = temp;
 }
 
 macro push_status_native() {
@@ -1525,6 +1528,23 @@ macro do_rep(op_nf, op_vf, op_df, op_if, op_zf, op_cf) {
     pull_status_emulation();
     pull16(PC);
     goto [PC_FULL];
+}
+
+:RTL    is op=0x6b
+{
+    local pc:2;
+    pull16(pc);
+    PC = pc + 1;
+    pull8(PBR);
+    return [PC_FULL];
+}
+
+:RTS    is op=0x60
+{
+    local pc:2;
+    pull16(pc);
+    PC = pc + 1;
+    return [PC_FULL];
 }
 
 # SBC 8 bit binary.
