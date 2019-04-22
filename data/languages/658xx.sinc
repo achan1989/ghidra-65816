@@ -44,9 +44,24 @@ define token opbyte (8)
 
 define token data8 (8)
    imm8     = (0,7)
-   srcbk    = (0,7)
-   destbk   = (0,7)
    rel8      = (0,7) signed
+;
+
+define token movearg (8)
+    srcbk    = (0,7)
+    destbk   = (0,7)
+;
+
+define token repsep (8)
+    op_flags = (0,7)
+    op_nf = (7,7)
+    op_vf = (6,6)
+    op_mf = (5,5)
+    op_xf = (4,4)
+    op_df = (3,3)
+    op_if = (2,2)
+    op_zf = (1,1)
+    op_cf = (0,0)
 ;
 
 define token data16 (16)
@@ -537,16 +552,24 @@ ADDR_SR_IND_IDX_Y: ($imm8,"S"),"Y"    is imm8  {
 }
 
 # Immediate, 8 bit mode.
-ADDR_IMM: #$imm8    is ctx_MF=1; imm8  {
+ADDR_IMM8: #$imm8    is imm8  {
     local imm8_1:1 = imm8;
     local value:2 = zext(imm8_1);
     export value;
 }
 
 # Immediate, 16 bit mode.
-ADDR_IMM: #$imm16    is ctx_MF=0; imm16  {
+ADDR_IMM16: #$imm16    is imm16  {
     local value:2 = imm16;
     export value;
+}
+
+# Immediate, size determined by MF.
+ADDR_IMM: ADDR_IMM8    is ctx_MF=1 & ADDR_IMM8  {
+    export ADDR_IMM8;
+}
+ADDR_IMM: ADDR_IMM16    is ctx_MF=0 & ADDR_IMM16  {
+    export ADDR_IMM16;
 }
 
 # Two subsets of the addressing modes for the primary group instructions
@@ -1396,6 +1419,47 @@ LDY_OP: ADDR_IMM    is (bbb=0) ... & ADDR_IMM  { export ADDR_IMM; }
 {
     pull16(Y);
     flag16_NZ(Y);
+}
+
+# REP native. Gross, but necessary to be able to reset the MF and XF context flags.
+macro do_rep(op_nf, op_vf, op_df, op_if, op_zf, op_cf) {
+    NF = NF && !(op_nf);
+    VF = VF && !(op_vf);
+    DF = DF && !(op_df);
+    IF = IF && !(op_if);
+    ZF = ZF && !(op_zf);
+    CF = CF && !(op_cf);
+}
+:REP "#$"op_flags    is (ctx_EF=0 & op=0xc2; op_flags & op_mf=0 & op_xf=0
+    & op_nf & op_vf & op_df & op_if & op_zf & op_cf)
+{
+    do_rep(op_nf:1, op_vf:1, op_df:1, op_if:1, op_zf:1, op_cf:1);
+}
+:REP "#$"op_flags    is (ctx_EF=0 & op=0xc2; op_flags & op_mf=0 & op_xf=1
+    & op_nf & op_vf & op_df & op_if & op_zf & op_cf)
+    [ ctx_XF=0; globalset(inst_next, ctx_XF); ]
+{
+    do_rep(op_nf:1, op_vf:1, op_df:1, op_if:1, op_zf:1, op_cf:1);
+}
+:REP "#$"op_flags    is (ctx_EF=0 & op=0xc2; op_flags & op_mf=1 & op_xf=0
+    & op_nf & op_vf & op_df & op_if & op_zf & op_cf)
+    [ ctx_MF=0; globalset(inst_next, ctx_MF); ]
+{
+    do_rep(op_nf:1, op_vf:1, op_df:1, op_if:1, op_zf:1, op_cf:1);
+}
+:REP "#$"op_flags    is (ctx_EF=0 & op=0xc2; op_flags & op_mf=1 & op_xf=1
+    & op_nf & op_vf & op_df & op_if & op_zf & op_cf)
+    [ ctx_XF=0; globalset(inst_next, ctx_XF);
+      ctx_MF=0; globalset(inst_next, ctx_MF); ]
+{
+    do_rep(op_nf:1, op_vf:1, op_df:1, op_if:1, op_zf:1, op_cf:1);
+}
+
+# REP emulation.
+:REP "#$"op_flags    is (ctx_EF=1 & op=0xc2; op_flags
+    & op_nf & op_vf & op_df & op_if & op_zf & op_cf)
+{
+    do_rep(op_nf:1, op_vf:1, op_df:1, op_if:1, op_zf:1, op_cf:1);
 }
 
 # SBC 8 bit binary.
