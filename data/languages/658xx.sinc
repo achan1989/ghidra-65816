@@ -611,6 +611,9 @@ SEC_OP_Y: SEC_OP_COMMON    is SEC_OP_COMMON  { export SEC_OP_COMMON; }
 SEC_OP_Y: ADDR_ABS_IDX_Y    is bbb=7; ADDR_ABS_IDX_Y  { export ADDR_ABS_IDX_Y; }
 SEC_OP_Y: ADDR_DP_IDX_Y    is bbb=5; ADDR_DP_IDX_Y  { export ADDR_DP_IDX_Y; }
 
+SHIFT_OP: SEC_OP_X    is SEC_OP_X  { export SEC_OP_X; }
+SHIFT_OP: ADDR_ACC    is bbb=2; ADDR_ACC  { export ADDR_ACC; }
+
 
 # Begin instructions.
 
@@ -741,9 +744,6 @@ SEC_OP_Y: ADDR_DP_IDX_Y    is bbb=5; ADDR_DP_IDX_Y  { export ADDR_DP_IDX_Y; }
     C = C & data;
     flag16_NZ(C);
 }
-
-SHIFT_OP: SEC_OP_X    is SEC_OP_X  { export SEC_OP_X; }
-SHIFT_OP: ADDR_ACC    is bbb=2; ADDR_ACC  { export ADDR_ACC; }
 
 # ASL 8 bit.
 :ASL SHIFT_OP    is (ctx_MF=1 &
@@ -1460,6 +1460,54 @@ macro do_rep(op_nf, op_vf, op_df, op_if, op_zf, op_cf) {
     & op_nf & op_vf & op_df & op_if & op_zf & op_cf)
 {
     do_rep(op_nf:1, op_vf:1, op_df:1, op_if:1, op_zf:1, op_cf:1);
+}
+
+# ROL 8 bit.
+:ROL SHIFT_OP    is (ctx_MF=1 &
+    (op=0x2a | op=0x2e | op=0x26 | op=0x3e | op=0x36)) ... & SHIFT_OP
+{
+    local data:1 = SHIFT_OP:1;
+    local result:1 = data << 1;
+    result = result | CF;
+    CF = data[7,1];
+    flag8_NZ(result);
+    SHIFT_OP[0,8] = result;
+}
+
+# ROL 16 bit.
+:ROL SHIFT_OP    is (ctx_MF=0 &
+    (op=0x2a | op=0x2e | op=0x26 | op=0x3e | op=0x36)) ... & SHIFT_OP
+{
+    local data:2 = SHIFT_OP;
+    local result:2 = data << 1;
+    result = result | zext(CF);
+    CF = data[15,1];
+    flag16_NZ(result);
+    SHIFT_OP = result;
+}
+
+# ROR 8 bit.
+:ROR SHIFT_OP    is (ctx_MF=1 &
+    (op=0x6a | op=0x6e | op=0x66 | op=0x7e | op=0x76)) ... & SHIFT_OP
+{
+    local data:1 = SHIFT_OP:1;
+    local result:1 = data >> 1;
+    result[7,1] = CF;
+    CF = data[0,1];
+    flag8_NZ(result);
+    SHIFT_OP[0,8] = result;
+}
+
+# ROR 16 bit.
+:ROR SHIFT_OP    is (ctx_MF=0 &
+    (op=0x6a | op=0x6e | op=0x66 | op=0x7e | op=0x76)) ... & SHIFT_OP
+{
+    local data:2 = SHIFT_OP;
+    local result:2 = data >> 1;
+    result[15,1] = CF;
+    CF = data[0,1];
+    flag16_NZ(result);
+    SHIFT_OP = result;
 }
 
 # SBC 8 bit binary.
