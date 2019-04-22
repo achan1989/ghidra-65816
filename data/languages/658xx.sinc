@@ -16,12 +16,12 @@ define register offset=0x10  size=1  [ A B XLow _ YLow _ _ _ _ _ ];
 define register offset=0x20  size=1  [ DBR ];
 
 # Status flags.
-define register offset=0x30  size=1  [ NF VF IF ZF CF BF ];
+define register offset=0x30  size=1  [ NF VF DF IF ZF CF BF ];
 define register offset=0x40  size=4  contextreg;
 define context contextreg
     ctx_MF=(0,0)
     ctx_XF=(1,1)
-    ctx_DF=(2,2)
+    # DF removed from slot 2
     ctx_EF=(3,3)
 ;
 # Unfortunately the ctx_xx fields can't be used at all in P-code macros, and
@@ -30,7 +30,7 @@ define context contextreg
 # of status flags (bit range access/assignments).
 @define MF "contextreg[0,1]"
 @define XF "contextreg[1,1]"
-@define DF "contextreg[2,1]"
+# @define DF "contextreg[2,1]"
 @define EF "contextreg[3,1]"
 
 
@@ -210,7 +210,7 @@ macro push_status_native() {
     status[6,1] = VF;
     status[5,1] = $(MF);
     status[4,1] = $(XF);
-    status[3,1] = $(DF);
+    status[3,1] = DF;
     status[2,1] = IF;
     status[1,1] = ZF;
     status[0,1] = CF;
@@ -223,14 +223,14 @@ macro push_status_emulation() {
     status[6,1] = VF;
     # bit 5 unused
     status[4,1] = BF;
-    status[3,1] = $(DF);
+    status[3,1] = DF;
     status[2,1] = IF;
     status[1,1] = ZF;
     status[0,1] = CF;
     push8(status);
 }
 
-# Does not support setting the context flags MF, XF, DF.
+# Does not support setting the context flags MF, XF.
 macro pull_status_native() {
     local status:1;
     pull8(status);
@@ -238,13 +238,12 @@ macro pull_status_native() {
     VF = status[6,1];
     # MF = status[5,1];
     # XF = status[4,1];
-    # DF = status[3,1];
+    DF = status[3,1];
     IF = status[2,1];
     ZF = status[1,1];
     CF = status[0,1];
 }
 
-# Does not support setting the context flag DF.
 macro pull_status_emulation() {
     local status:1;
     pull8(status);
@@ -252,7 +251,7 @@ macro pull_status_emulation() {
     VF = status[6,1];
     # bit 5 unused
     BF = status[4,1];
-    # DF = status[3,1];
+    DF = status[3,1];
     IF = status[2,1];
     ZF = status[1,1];
     CF = status[0,1];
@@ -721,7 +720,6 @@ BIT_OP: ADDR_IMM    is op=0x89; ADDR_IMM  { export ADDR_IMM; }
 }
 
 :BRK    is op=0x00
-    [ctx_DF = 0; globalset(inst_next, ctx_DF);]
 {
     local pc_inc:2 = PC + 2;
     local target:3;
@@ -733,6 +731,7 @@ BIT_OP: ADDR_IMM    is op=0x89; ADDR_IMM  { export ADDR_IMM; }
     push16(pc_inc);
     push_status_native();
     IF = 1;
+    DF = 0;
     PBR = 0;
     target = zext(*:2 0x00FFE6:3);
     goto <end>;
@@ -741,6 +740,7 @@ BIT_OP: ADDR_IMM    is op=0x89; ADDR_IMM  { export ADDR_IMM; }
     push16(pc_inc);
     local save_bf:1 = BF;  BF = 1;  push_status_emulation();  BF = save_bf;
     IF = 1;
+    DF = 0;
     target = zext(*:2 0x00FFFE:3);
 
     <end>
@@ -753,8 +753,9 @@ BIT_OP: ADDR_IMM    is op=0x89; ADDR_IMM  { export ADDR_IMM; }
 }
 
 :CLD    is op=0xD8
-    [ctx_DF = 0; globalset(inst_next, ctx_DF); ]
-{}
+{
+    DF = 0;
+}
 
 :CLI    is op=0x58
 {
@@ -795,7 +796,6 @@ BIT_OP: ADDR_IMM    is op=0x89; ADDR_IMM  { export ADDR_IMM; }
 }
 
 :COP    is op=0x02
-    [ctx_DF = 0; globalset(inst_next, ctx_DF); ]
 {
     local pc_inc:2 = PC + 2;
     local target:3;
@@ -807,6 +807,7 @@ BIT_OP: ADDR_IMM    is op=0x89; ADDR_IMM  { export ADDR_IMM; }
     push16(pc_inc);
     push_status_native();
     IF = 1;
+    DF = 0;
     PBR = 0;
     target = zext(*:2 0x00FFE4:3);
     goto <end>;
@@ -815,6 +816,7 @@ BIT_OP: ADDR_IMM    is op=0x89; ADDR_IMM  { export ADDR_IMM; }
     push16(pc_inc);
     push_status_emulation();
     IF = 1;
+    DF = 0;
     target = zext(*:2 0x00FFF4:3);
 
     <end>
@@ -1294,13 +1296,13 @@ LDY_OP: ADDR_IMM    is (bbb=0) ... & ADDR_IMM  { export ADDR_IMM; }
     flag16_NZ(DP);
 }
 
-# PLP native. Does not support setting the context flags MF, XF, DF.
+# PLP native. Does not support setting the context flags MF, XF.
 :PLP    is (ctx_EF=0 & op=0x28)
 {
     pull_status_native();
 }
 
-# PLP emulation. Does not support setting the context flag DF.
+# PLP emulation.
 :PLP    is (ctx_EF=1 & op=0x28)
 {
     pull_status_emulation();
