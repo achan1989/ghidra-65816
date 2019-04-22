@@ -1719,3 +1719,51 @@ define pcodeop stop;
     local target:3 = zext(*:2 0x00FFFC:3);
     goto [target];
 }
+
+STX_OP: SEC_OP_COMMON    is SEC_OP_COMMON  { export SEC_OP_COMMON; }
+STX_OP: ADDR_DP_IDX_Y    is bbb=5; ADDR_DP_IDX_Y  { export ADDR_DP_IDX_Y; }
+
+# STX 8 bit.
+:STX STX_OP    is (ctx_XF=1 & (op=0x8e | op=0x86 | op=0x96)) ... & STX_OP
+{
+    STX_OP[0,8] = XLow;
+}
+
+# STX 16 bit.
+:STX STX_OP    is (ctx_XF=0 & (op=0x8e | op=0x86 | op=0x96)) ... & STX_OP
+{
+    STX_OP = X;
+}
+
+STY_OP: SEC_OP_COMMON    is SEC_OP_COMMON  { export SEC_OP_COMMON; }
+STY_OP: ADDR_DP_IDX_X    is bbb=5; ADDR_DP_IDX_X  { export ADDR_DP_IDX_X; }
+
+# STY 8 bit.
+:STY STY_OP    is (ctx_XF=1 & (op=0x8c | op=0x84 | op=0x94)) ... & STY_OP
+{
+    STY_OP[0,8] = YLow;
+}
+
+# STY 16 bit.
+:STY STY_OP    is (ctx_XF=0 & (op=0x8c | op=0x84 | op=0x94)) ... & STY_OP
+{
+    STY_OP = Y;
+}
+
+# STZ has irregular address mode encoding compared to the other secondary instructions.
+STZ_OP: ADDR_ABS    is op=0x9c; ADDR_ABS  { export ADDR_ABS; }
+STZ_OP: ADDR_DP    is op=0x64; ADDR_DP  { export ADDR_DP; }
+STZ_OP: ADDR_ABS_IDX_X    is op=0x9e; ADDR_ABS_IDX_X  { export ADDR_ABS_IDX_X; }
+STZ_OP: ADDR_DP_IDX_X    is op=0x74; ADDR_DP_IDX_X  { export ADDR_DP_IDX_X; }
+
+# STZ 8 bit.
+:STZ STZ_OP    is (ctx_MF=1 & (op=0x9c | op=0x64 | op=0x9e | op=0x74)) ... & STZ_OP
+{
+    STZ_OP[0,8] = 0:1;
+}
+
+# STZ 16 bit.
+:STZ STZ_OP    is (ctx_MF=0 & (op=0x9c | op=0x64 | op=0x9e | op=0x74)) ... & STZ_OP
+{
+    STZ_OP = 0:2;
+}
