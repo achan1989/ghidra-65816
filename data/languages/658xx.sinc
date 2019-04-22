@@ -829,7 +829,7 @@ BIT_OP: ADDR_IMM    is op=0x89; ADDR_IMM  { export ADDR_IMM; }
     target = zext(*:2 0x00FFFE:3);
 
     <end>
-    call [target];
+    goto [target];
 }
 
 :CLC    is op=0x18
@@ -905,7 +905,7 @@ BIT_OP: ADDR_IMM    is op=0x89; ADDR_IMM  { export ADDR_IMM; }
     target = zext(*:2 0x00FFF4:3);
 
     <end>
-    call [target];
+    goto [target];
 }
 
 CPXY_OP: SEC_OP_COMMON    is (cc=0) ... & SEC_OP_COMMON  { export SEC_OP_COMMON; }
@@ -1508,6 +1508,23 @@ macro do_rep(op_nf, op_vf, op_df, op_if, op_zf, op_cf) {
     CF = data[0,1];
     flag16_NZ(result);
     SHIFT_OP = result;
+}
+
+# RTI native. Does not support pulling the context flags MF, XF.
+:RTI    is (ctx_EF=0 & op=0x40)
+{
+    pull_status_native();
+    pull16(PC);
+    pull8(PBR);
+    goto [PC_FULL];
+}
+
+# RTI emulation.
+:RTI    is (ctx_EF=1 & op=0x40)
+{
+    pull_status_emulation();
+    pull16(PC);
+    goto [PC_FULL];
 }
 
 # SBC 8 bit binary.
