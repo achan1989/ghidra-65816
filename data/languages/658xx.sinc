@@ -576,20 +576,104 @@ ADDR_IMM: ADDR_IMM16    is ctx_MF=0 & ADDR_IMM16  {
     export ADDR_IMM16;
 }
 
-# PC relative.
+# PC relative. For branches only.
 # Wraps to stay within the bank of the current instruction.
-ADDR_PC_REL: reloc    is rel8
+ADDR_PC_REL_BRA: reloc    is rel8
     [ reloc = (inst_start $and 0xff0000) $or ((inst_next + rel8) $and 0x00ffff); ]
 {
     export *:3 reloc;
 }
 
-# PC relative long.
+# PC relative long. For branches only.
 # Wraps to stay within the bank of the current instruction.
-ADDR_PC_REL_LONG: reloc    is rel16
+ADDR_PC_REL_LONG_BRA: reloc    is rel16
     [ reloc = (inst_start $and 0xff0000) $or ((inst_next + rel16) $and 0x00ffff); ]
 {
     export *:3 reloc;
+}
+
+# Absolute. For jumps only (uses PBR not DBR).
+ADDR_ABS_JMP: !$imm16    is imm16  {
+    local tmp:3;
+    make_addr24(tmp, PBR, imm16);
+    export *:3 tmp;
+}
+
+# Absolute long. For jumps only.
+ADDR_ABS_LONG_JMP: >$imm24    is imm24
+{
+    local tmp:3 = imm24;
+    export *:3 tmp;
+}
+
+# Absolute indexed indirect, 8 bit mode. For jumps only.
+ADDR_ABS_IDX_IND_JMP: ($imm16,"X")    is ctx_XF=1 & imm16
+{
+    # Accessing the indirect address must wrap to stay within the bank.
+    local ind_lo_addr:3;
+    make_addr24(ind_lo_addr, PBR, (imm16 + zext(XLow) + 0));
+    local ind_hi_addr:3;
+    make_addr24(ind_hi_addr, PBR, (imm16 + zext(XLow) + 1));
+
+    local ind:3;
+    ind[16,8] = PBR;
+    ind[8,8] = *:1 ind_hi_addr;
+    ind[0,8] = *:1 ind_lo_addr;
+
+    local ea:3;
+    make_addr24(ea, PBR, *:2 ind);
+    export *:3 ea;
+}
+# Absolute indexed indirect, 16 bit mode. For jumps only.
+ADDR_ABS_IDX_IND_JMP: ($imm16,"X")    is ctx_XF=0 & imm16
+{
+    # Accessing the indirect address must wrap to stay within the bank.
+    # Indexing does NOT allow the indirect lookup to cross bank boundaries.
+    local ind_lo_addr:3;
+    make_addr24(ind_lo_addr, PBR, (imm16 + X + 0));
+    local ind_hi_addr:3;
+    make_addr24(ind_hi_addr, PBR, (imm16 + X + 1));
+
+    local ea:3;
+    ea[16,8] = PBR;
+    ea[8,8] = *:1 ind_hi_addr;
+    ea[0,8] = *:1 ind_lo_addr;
+    export *:3 ea;
+}
+
+# Absolute indirect. For jumps only.
+ADDR_ABS_IND_JMP: ($imm16)    is imm16
+{
+    # Accessing the indirect address must wrap to stay within bank 0.
+    # Indexing does NOT allow the indirect lookup to cross bank boundaries.
+    local ind_lo_addr:3;
+    make_addr24(ind_lo_addr, 0, (imm16 + 0));
+    local ind_hi_addr:3;
+    make_addr24(ind_hi_addr, 0, (imm16 + 1));
+
+    local ea:3;
+    ea[16,8] = PBR;
+    ea[8,8] = *:1 ind_hi_addr;
+    ea[0,8] = *:1 ind_lo_addr;
+    export *:3 ea;
+}
+
+# Absolute indirect long. For jumps only.
+ADDR_ABS_IND_LONG_JMP: [$imm16]    is imm16
+{
+    # Accessing the indirect address must wrap to stay within bank 0.
+    local ind_lo_addr:3;
+    make_addr24(ind_lo_addr, 0, (imm16 + 0));
+    local ind_hi_addr:3;
+    make_addr24(ind_hi_addr, 0, (imm16 + 1));
+    local ind_bank_addr:3;
+    make_addr24(ind_bank_addr, 0, (imm16 + 2));
+
+    local ea:3;
+    ea[16,8] = *:1 ind_bank_addr;
+    ea[8,8] = *:1 ind_hi_addr;
+    ea[0,8] = *:1 ind_lo_addr;
+    export *:3 ea;
 }
 
 # Two subsets of the addressing modes for the primary group instructions
@@ -789,19 +873,19 @@ SHIFT_OP: ADDR_ACC    is bbb=2; ADDR_ACC  { export ADDR_ACC; }
     CF = data[15,1];
 }
 
-:BCC ADDR_PC_REL    is op=0x90; ADDR_PC_REL
+:BCC ADDR_PC_REL_BRA    is op=0x90; ADDR_PC_REL_BRA
 {
-    if (CF==0) goto ADDR_PC_REL;
+    if (CF==0) goto ADDR_PC_REL_BRA;
 }
 
-:BCS ADDR_PC_REL    is op=0xb0; ADDR_PC_REL
+:BCS ADDR_PC_REL_BRA    is op=0xb0; ADDR_PC_REL_BRA
 {
-    if (CF==1) goto ADDR_PC_REL;
+    if (CF==1) goto ADDR_PC_REL_BRA;
 }
 
-:BEQ ADDR_PC_REL    is op=0xf0; ADDR_PC_REL
+:BEQ ADDR_PC_REL_BRA    is op=0xf0; ADDR_PC_REL_BRA
 {
-    if (ZF==1) goto ADDR_PC_REL;
+    if (ZF==1) goto ADDR_PC_REL_BRA;
 }
 
 BIT_OP: SEC_OP_X    is (aaa=1 & cc=0) ... & SEC_OP_X  { export SEC_OP_X; }
@@ -839,24 +923,24 @@ BIT_OP: ADDR_IMM    is op=0x89; ADDR_IMM  { export ADDR_IMM; }
     flag16_Z(result);
 }
 
-:BMI ADDR_PC_REL    is op=0x30; ADDR_PC_REL
+:BMI ADDR_PC_REL_BRA    is op=0x30; ADDR_PC_REL_BRA
 {
-    if (NF==1) goto ADDR_PC_REL;
+    if (NF==1) goto ADDR_PC_REL_BRA;
 }
 
-:BNE ADDR_PC_REL    is op=0xd0; ADDR_PC_REL
+:BNE ADDR_PC_REL_BRA    is op=0xd0; ADDR_PC_REL_BRA
 {
-    if (ZF==0) goto ADDR_PC_REL;
+    if (ZF==0) goto ADDR_PC_REL_BRA;
 }
 
-:BPL ADDR_PC_REL    is op=0x10; ADDR_PC_REL
+:BPL ADDR_PC_REL_BRA    is op=0x10; ADDR_PC_REL_BRA
 {
-    if (NF==0) goto ADDR_PC_REL;
+    if (NF==0) goto ADDR_PC_REL_BRA;
 }
 
-:BRA ADDR_PC_REL    is op=0x80; ADDR_PC_REL
+:BRA ADDR_PC_REL_BRA    is op=0x80; ADDR_PC_REL_BRA
 {
-    goto ADDR_PC_REL;
+    goto ADDR_PC_REL_BRA;
 }
 
 :BRK    is op=0x00
@@ -887,19 +971,19 @@ BIT_OP: ADDR_IMM    is op=0x89; ADDR_IMM  { export ADDR_IMM; }
     goto [target];
 }
 
-:BRL ADDR_PC_REL_LONG    is op=0x82; ADDR_PC_REL_LONG
+:BRL ADDR_PC_REL_LONG_BRA    is op=0x82; ADDR_PC_REL_LONG_BRA
 {
-    goto ADDR_PC_REL_LONG;
+    goto ADDR_PC_REL_LONG_BRA;
 }
 
-:BVC ADDR_PC_REL    is op=0x50; ADDR_PC_REL
+:BVC ADDR_PC_REL_BRA    is op=0x50; ADDR_PC_REL_BRA
 {
-    if (VF==0) goto ADDR_PC_REL;
+    if (VF==0) goto ADDR_PC_REL_BRA;
 }
 
-:BVS ADDR_PC_REL    is op=0x70; ADDR_PC_REL
+:BVS ADDR_PC_REL_BRA    is op=0x70; ADDR_PC_REL_BRA
 {
-    if (VF==1) goto ADDR_PC_REL;
+    if (VF==1) goto ADDR_PC_REL_BRA;
 }
 
 :CLC    is op=0x18
