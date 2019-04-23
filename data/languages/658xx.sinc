@@ -11,8 +11,8 @@ define register offset=0x00  size=3  [ PC_FULL ];
 define register offset=0x00  size=2  [ PC ];
 define register offset=0x02  size=1  [ PBR ];
 
-define register offset=0x10  size=2  [ C   X          Y          DP  SP ];
-define register offset=0x10  size=1  [ A B XLow XHigh YLow YHigh _ _ SPLow SPHigh ];
+define register offset=0x10  size=2  [ C   X          Y          DP      SP ];
+define register offset=0x10  size=1  [ A B XLow XHigh YLow YHigh DPLow _ SPLow SPHigh ];
 define register offset=0x20  size=1  [ DBR ];
 
 # Status flags.
@@ -84,36 +84,47 @@ macro make_addr24(_out, _bank, _addr16) {
     _out = result;
 }
 
+# This macro is for instructions that exist on the 65(C)02.
 macro calculate_dp_addr24(_out, _offset8) {
     local offset8:1 = _offset8;
     local result:3;
 
-    if (($(EF) == 1) && ((DP & 0xFF) == 0)) goto <emu>;
-    goto <not_emu>;
-
-    <emu>
-    result = zext(offset8);
-    goto <end>;
+    if (($(EF) == 1) && (DPLow == 0)) goto <emu>;
 
     <not_emu>
-    local offset16:2 = zext(offset8);
-    # This is modulo 16 bits, always in bank 0.
-    local addr16:2 = DP + offset16;
-    result = zext(addr16);
+    # Quote from manual p58:
+    # "While the direct page can be set to the zero page, direct page indexed addresses can cross
+    # pages in native mode..."
+    #
+    # So for this part of the macro (native-ish mode) the access is modulo 16 bits (but always
+    # in bank 0).
+    make_addr24(result, 0, (DP + zext(offset8)));
+    goto <end>;
+
+    <emu>
+    # Quote from manual p278:
+    # "Pay particular attention to the peculiarities of the direct page in the emulation mode: as
+    # with the 6502 and 65C02, instructions which use direct page addressing modes will
+    # [appear to?] “wrap” to stay within the zero page, but only when the direct page register is
+    # equal to zero. Opcodes which are not found on the 6502 or 65C02 will not wrap at all, even
+    # when the direct page is equal to zero in the emulation mode."
+    #
+    # This macro is for instructions that exist on the 65(C)02, so exhibit the wrapping behaviour.
+    # Higan uses DP for some reason, instead of DPLow. I'm going to assume that's correct.
+    make_addr24(result, 0, (DP | zext(offset8)));
+    result = zext(offset8);
 
     <end>
     _out = result;
 }
 
+# This macro is for instructions that don't exist on the 65(C)02, i.e. that explicitly don't
+# want the emulated DP wrapping behaviour.
 macro calculate_dp_addr24_no_emu(_out, _offset8) {
+    # As per the non-emulation case in the macro above.
     local offset8:1 = _offset8;
     local result:3;
-
-    local offset16:2 = zext(offset8);
-    # This is modulo 16 bits.
-    local addr16:2 = DP + offset16;
-    result = zext(addr16);
-
+    make_addr24(result, 0, (DP + zext(offset8)));
     _out = result;
 }
 
@@ -281,6 +292,10 @@ macro pull_status_emulation() {
 # TODO: deal with 65802/65816 in native/emulation modes?
 # TODO: is explicit use of const space necessary?
 # TODO: for all operations that affect the stack, limit the stack pointer when in emulation mode.
+# TODO: make sure we're using the data bank register when reading.
+# TODO: make sure we're setting flags for all instructions.
+# TODO: make sure addressing modes/data access is wrapping to stay within banks if necessary.
+# TODO: check instructions' use of DP addressing modes with or without special emulation behaviour.
 
 # In the 6502/65C02, the effective address formed using zero page indexed addressing from a zero page
 # base address of $F0 and an index of $20 is $10; that is, zero page indexed effective addresses wrap around to
@@ -322,6 +337,14 @@ ADDR_ABS_LONG: >$imm24    is imm24  {
 
 # Direct page.
 # Emulation mode may cause offset to wrap.
+# TODO: fix this address mode.
+# A single-byte DP access will work fine, but a multi-byte access does not
+# wrap within the DP properly. Should do:
+# low ref = calculate_dp_addr24(tmp, imm8 + 0)
+# high ref = calculate_dp_addr24(tmp, imm8 + 1)
+# But this will require ALL addressing modes to export complicated multi-byte
+# references, and read/write will become more complex in all instruction
+# implementations...
 ADDR_DP: <$imm8    is imm8  {
     local tmp:3;
     calculate_dp_addr24(tmp, imm8);
@@ -330,6 +353,8 @@ ADDR_DP: <$imm8    is imm8  {
 
 # Direct page indirect.
 # No change when emulation mode, this does not exist on the 6502.
+# TODO: fix this address mode.
+# Similar wrapping problem to the plain DP addressing mode.
 ADDR_DP_IND: ($imm8)    is imm8  {
     local ind:3;
     calculate_dp_addr24_no_emu(ind, imm8);
@@ -342,6 +367,8 @@ ADDR_DP_IND: ($imm8)    is imm8  {
 }
 
 # Stack direct page indirect.
+# TODO: fix this address mode.
+# Similar wrapping problem to the plain DP addressing mode.
 ADDR_STACK_DP_IND: ($imm8)    is imm8  {
     local ind:3;
     calculate_dp_addr24_no_emu(ind, imm8);
@@ -352,6 +379,8 @@ ADDR_STACK_DP_IND: ($imm8)    is imm8  {
 
 # Direct page indirect long.
 # No change when emulation mode, this does not exist on the 6502.
+# TODO: fix this address mode.
+# Similar wrapping problem to the plain DP addressing mode.
 ADDR_DP_IND_LONG: [$imm8]    is imm8  {
     local ind:3;
     calculate_dp_addr24_no_emu(ind, imm8);
@@ -360,47 +389,63 @@ ADDR_DP_IND_LONG: [$imm8]    is imm8  {
     export *:2 ea;
 }
 
-# Absolute indexed X.
+# Absolute indexed X, 8 bit mode.
+# Indexing allows the access to cross bank boundaries, and even works if the
+# access straddles the boundary.
 # TODO don't think this is affected by emulation mode?
-ADDR_ABS_IDX_X: !$imm16,"X"    is imm16  {
+ADDR_ABS_IDX_X: !$imm16,"X"    is ctx_XF=1 & imm16  {
     local base:3;
     make_addr24(base, DBR, imm16);
 
-    local idx:2 = X;
-    if ($(XF) == 0) goto <skip_idx8>;
-    idx = zext(XLow);
-    <skip_idx8>
+    local ea:3 = base + zext(XLow);
+    export *:2 ea;
+}
+# Absolute indexed X, 16 bit mode.
+# TODO don't think this is affected by emulation mode?
+ADDR_ABS_IDX_X: !$imm16,"X"    is ctx_XF=0 & imm16  {
+    local base:3;
+    make_addr24(base, DBR, imm16);
 
-    local ea:3 = base + zext(idx);
+    local ea:3 = base + zext(X);
     export *:2 ea;
 }
 
-# Absolute long indexed X.
+# Absolute long indexed X, 8 bit mode.
+# Indexing allows the access to cross bank boundaries, and even works if the
+# access straddles the boundary.
 # No change when emulation mode.
-ADDR_ABS_LONG_IND_X: >$imm24,"X"    is imm24  {
+ADDR_ABS_LONG_IND_X: >$imm24,"X"    is ctx_XF=1 & imm24  {
     local base:3 = imm24;
 
-    local idx:2 = X;
-    if ($(XF) == 0) goto <skip_idx8>;
-    idx = zext(XLow);
-    <skip_idx8>
+    local ea:3 = base + zext(XLow);
+    export *:2 ea;
+}
+# Absolute long indexed X, 16 bit mode.
+ADDR_ABS_LONG_IND_X: >$imm24,"X"    is ctx_XF=0 & imm24  {
+    local base:3 = imm24;
 
-    local ea:3 = base + zext(idx);
+    local ea:3 = base + zext(X);
     export *:2 ea;
 }
 
-# Absolute indexed Y.
+# Absolute indexed Y, 8 bit mode.
+# Indexing allows the access to cross bank boundaries, and even works if the
+# access straddles the boundary.
 # TODO don't think this is affected by emulation mode?
-ADDR_ABS_IDX_Y: !$imm16,"Y"    is imm16  {
+ADDR_ABS_IDX_Y: !$imm16,"Y"    is ctx_XF=1 & imm16  {
     local base:3;
     make_addr24(base, DBR, imm16);
 
-    local idx:2 = Y;
-    if ($(XF) == 0) goto <skip_idx8>;
-    idx = zext(YLow);
-    <skip_idx8>
+    local ea:3 = base + zext(YLow);
+    export *:2 ea;
+}
+# Absolute indexed Y, 16 bit mode.
+# TODO don't think this is affected by emulation mode?
+ADDR_ABS_IDX_Y: !$imm16,"Y"    is ctx_XF=0 & imm16  {
+    local base:3;
+    make_addr24(base, DBR, imm16);
 
-    local ea:3 = base + zext(idx);
+    local ea:3 = base + zext(Y);
     export *:2 ea;
 }
 
@@ -411,7 +456,9 @@ ADDR_ACC: "A"    is epsilon  {
 
 # Direct page indexed X.
 # Emulation mode may restrict addresses to the zero page.
-# TODO: check against higan.
+# TODO: fix this address mode.
+# Similar wrapping problem to the plain DP addressing mode.
+# Break out into 8/16 bit versions.
 ADDR_DP_IDX_X: $imm8,"X"    is imm8  {
     local idx:2 = X;
     if ($(XF) == 0) goto <skip_idx8>;
@@ -433,7 +480,9 @@ ADDR_DP_IDX_X: $imm8,"X"    is imm8  {
 
 # Direct page indexed Y.
 # Emulation mode may restrict addresses to the zero page.
-# TODO: check against higan.
+# TODO: fix this address mode.
+# Similar wrapping problem to the plain DP addressing mode.
+# Break out into 8/16 bit versions.
 ADDR_DP_IDX_Y: $imm8,"Y"    is imm8  {
     local idx:2 = Y;
     if ($(XF) == 0) goto <skip_idx8>;
@@ -455,7 +504,9 @@ ADDR_DP_IDX_Y: $imm8,"Y"    is imm8  {
 
 # Direct page indexed indirect X.
 # Emulation mode restricts indirection addresses to the direct page.
-# TODO: check against higan, use DP macro?
+# TODO: fix this address mode.
+# Similar wrapping problem to the plain DP addressing mode.
+# Break out into 8/16 bit versions.
 ADDR_DP_IDX_X_IND: (<$imm8,"X")    is imm8  {
     local idx:2 = X;
     # For this constructor sleigh has decided that it can't infer the bool size for some reason...
@@ -489,6 +540,9 @@ ADDR_DP_IDX_X_IND: (<$imm8,"X")    is imm8  {
 # Direct page indirect, indexed Y.
 # "The array of memory accessible to the indirect indexed addressing mode can extend beyond the
 # current 64K data bank into the next 64K bank, if the index plus the array base exceeds $FFFF."
+# TODO: fix this address mode.
+# Similar wrapping problem to the plain DP addressing mode.
+# Break out into 8/16 bit versions.
 ADDR_DP_IND_IDX_Y: ($imm8),"Y"    is imm8  {
     local ind:2;
     read16_dp_offset(ind, imm8);
@@ -506,6 +560,9 @@ ADDR_DP_IND_IDX_Y: ($imm8),"Y"    is imm8  {
 }
 
 # Direct page indirect long, indexed Y.
+# TODO: fix this address mode.
+# Similar wrapping problem to the plain DP addressing mode.
+# Break out into 8/16 bit versions.
 ADDR_DP_IND_LONG_IDX_Y: [$imm8],"Y"    is imm8  {
     local ind:3;
     read24_dp_offset(ind, imm8);
@@ -520,17 +577,21 @@ ADDR_DP_IND_LONG_IDX_Y: [$imm8],"Y"    is imm8  {
 }
 
 # Stack relative.
+# TODO: fix this address mode.
+# Similar wrapping problem to the plain DP addressing mode.
 ADDR_SR: $imm8,"S"    is imm8  {
-    local imm8_1:1 = imm8;
-    local imm8_2:2 = zext(imm8_1);
+    local offset:2 = zext(imm8);
+    local addr16:2 = SP + offset;
 
-    local addr16:2 = SP + imm8_2;
     local tmp:3;
     make_addr24(tmp, 0, addr16);
     export *:2 tmp;
 }
 
 # Stack relative indirect, indexed Y.
+# TODO: fix this address mode.
+# Similar wrapping problem to the plain DP addressing mode.
+# Break out into 8/16 bit versions.
 ADDR_SR_IND_IDX_Y: ($imm8,"S"),"Y"    is imm8  {
     local imm8_1:1 = imm8;
     local stack_addr16:2 = SP + zext(imm8_1);
@@ -1219,6 +1280,8 @@ DEC_INC_OP: ADDR_ACC    is (bbb=6) ... & ADDR_ACC  { export ADDR_ACC; }
     flag16_NZ(result);
     Y = result;
 }
+
+# TODO: JMP  p 360
 
 # LDA 8 bit.
 :LDA PRIMARY_OP    is (ctx_MF=1 &
