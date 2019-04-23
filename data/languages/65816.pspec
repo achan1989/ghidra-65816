@@ -34,16 +34,16 @@
     <symbol name="CLR" address="19"/>
     <symbol name="ACHR" address="1A"/>
     <symbol name="ACLR" address="1B"/> -->
-    <symbol name="IRQ_EMULATION" address="FFFE" entry="true" type="code_ptr"/>
-    <symbol name="RESET_EMULATION" address="FFFC" entry="true" type="code_ptr"/>
-    <symbol name="NMI_EMULATION" address="FFFA" entry="true" type="code_ptr"/>
-    <symbol name="ABORT_EMULATION" address="FFF8" entry="true" type="code_ptr"/>
-    <symbol name="COP_EMULATION" address="FFF4" entry="true" type="code_ptr"/>
-    <symbol name="IRQ_NATIVE" address="FFEE" entry="true" type="code_ptr"/>
-    <symbol name="NMI_NATIVE" address="FFEA" entry="true" type="code_ptr"/>
-    <symbol name="ABORT_NATIVE" address="FFE8" entry="true" type="code_ptr"/>
-    <symbol name="BRK_NATIVE" address="FFE6" entry="true" type="code_ptr"/>
-    <symbol name="COP_NATIVE" address="FFE4" entry="true" type="code_ptr"/>
+    <symbol name="VEC_IRQ_EMULATION" address="FFFE" entry="true" type="code_ptr"/>
+    <symbol name="VEC_RESET_EMULATION" address="FFFC" entry="true" type="code_ptr"/>
+    <symbol name="VEC_NMI_EMULATION" address="FFFA" entry="true" type="code_ptr"/>
+    <symbol name="VEC_ABORT_EMULATION" address="FFF8" entry="true" type="code_ptr"/>
+    <symbol name="VEC_COP_EMULATION" address="FFF4" entry="true" type="code_ptr"/>
+    <symbol name="VEC_IRQ_NATIVE" address="FFEE" entry="true" type="code_ptr"/>
+    <symbol name="VEC_NMI_NATIVE" address="FFEA" entry="true" type="code_ptr"/>
+    <symbol name="VEC_ABORT_NATIVE" address="FFE8" entry="true" type="code_ptr"/>
+    <symbol name="VEC_BRK_NATIVE" address="FFE6" entry="true" type="code_ptr"/>
+    <symbol name="VEC_COP_NATIVE" address="FFE4" entry="true" type="code_ptr"/>
   </default_symbols>
   
   <default_memory_blocks>
