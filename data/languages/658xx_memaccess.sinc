@@ -1,0 +1,661 @@
+# Macros and tables for memory access.
+
+
+macro make_addr24(_out, _bank, _addr16) {
+    local bank8:1 = _bank;
+    local addr16:2 = _addr16;
+
+    local bank24:3 = zext(bank8);
+    local addr24:3 = zext(addr16);
+    local result:3 = (bank24 << 16) | addr24;
+    _out = result;
+}
+
+# This macro is for instructions that exist on the 65(C)02.
+macro calculate_dp_addr24(_out, _offset8) {
+    local offset8:1 = _offset8;
+    local result:3;
+
+    if (($(EF) == 1) && (DPLow == 0)) goto <emu>;
+
+    <not_emu>
+    # Quote from manual p58:
+    # "While the direct page can be set to the zero page, direct page indexed addresses can cross
+    # pages in native mode..."
+    #
+    # So for this part of the macro (native-ish mode) the access is modulo 16 bits (but always
+    # in bank 0).
+    make_addr24(result, 0, (DP + zext(offset8)));
+    goto <end>;
+
+    <emu>
+    # Quote from manual p278:
+    # "Pay particular attention to the peculiarities of the direct page in the emulation mode: as
+    # with the 6502 and 65C02, instructions which use direct page addressing modes will
+    # [appear to?] “wrap” to stay within the zero page, but only when the direct page register is
+    # equal to zero. Opcodes which are not found on the 6502 or 65C02 will not wrap at all, even
+    # when the direct page is equal to zero in the emulation mode."
+    #
+    # This macro is for instructions that exist on the 65(C)02, so exhibit the wrapping behaviour.
+    # Higan uses DP for some reason, instead of DPLow. I'm going to assume that's correct.
+    make_addr24(result, 0, (DP | zext(offset8)));
+    result = zext(offset8);
+
+    <end>
+    _out = result;
+}
+
+# This macro is for instructions that don't exist on the 65(C)02, i.e. that explicitly don't
+# want the emulated DP wrapping behaviour.
+macro calculate_dp_addr24_no_emu(_out, _offset8) {
+    # As per the non-emulation case in the macro above.
+    local offset8:1 = _offset8;
+    local result:3;
+    make_addr24(result, 0, (DP + zext(offset8)));
+    _out = result;
+}
+
+macro read16_dp_offset(_out, _offset8) {
+    local offset8:1 = _offset8;
+
+    local addrLo:3;
+    calculate_dp_addr24(addrLo, offset8);
+    local addrHi:3;
+    calculate_dp_addr24(addrHi, offset8 + 1);
+
+    local lo:1 = *addrLo;
+    local hi:1 = *addrHi;
+    local value:2 = (zext(hi) << 8) | zext(lo);
+    _out = value;
+}
+
+macro read24_dp_offset(_out, _offset8) {
+    local offset8:1 = _offset8;
+
+    local addrLo:3;
+    calculate_dp_addr24(addrLo, offset8);
+    local addrHi:3;
+    calculate_dp_addr24(addrHi, offset8 + 1);
+    local addrBank:3;
+    calculate_dp_addr24(addrBank, offset8 + 2);
+
+    local lo:1 = *addrLo;
+    local hi:1 = *addrHi;
+    local bank:1 = *addrBank;
+    local value:3 = (zext(bank) << 16) | (zext(hi) << 8) | zext(lo);
+    _out = value;
+}
+
+macro flag8_N(_acc) {
+    local acc:1 = _acc;
+    NF = (acc & 0x80) != 0;
+}
+
+macro flag8_Z(_acc) {
+    local acc:1 = _acc;
+    ZF = acc == 0;
+}
+
+macro flag8_NZ(_acc) {
+    flag8_N(_acc);
+    flag8_Z(_acc);
+}
+
+macro flag16_N(_acc) {
+    local acc:2 = _acc;
+    NF = (acc & 0x8000) != 0;
+}
+
+macro flag16_Z(_acc) {
+    local acc:2 = _acc;
+    ZF = acc == 0;
+}
+
+macro flag16_NZ(_acc) {
+    flag16_N(_acc);
+    flag16_Z(_acc);
+}
+
+macro push8(_val8) {
+    local value:1 = _val8;
+    local sp:3 = zext(SP);
+    *:1 sp = value;
+    SP = SP - 1;
+}
+
+macro push16(_val16) {
+    local value:2 = _val16;
+    local sp:3;
+
+    # High byte.
+    sp = zext(SP);
+    *:1 sp = value(1);
+    SP = SP - 1;
+
+    # Low byte.
+    sp = zext(SP);
+    *:1 sp = value:1;
+    SP = SP - 1;
+}
+
+macro pull8(var8) {
+    SP = SP + 1;
+    local sp:3 = zext(SP);
+    var8 = *:1 sp;
+}
+
+macro pull16(var16) {
+    local sp:3;
+    local temp:2;
+
+    # Low byte.
+    SP = SP + 1;
+    sp = zext(SP);
+    temp[0,8] = *:1 sp;
+
+    # High byte.
+    SP = SP + 1;
+    sp = zext(SP);
+    temp[8,8] = *:1 sp;
+
+    var16 = temp;
+}
+
+macro push_status_native() {
+    local status:1;
+    status[7,1] = NF;
+    status[6,1] = VF;
+    status[5,1] = $(MF);
+    status[4,1] = $(XF);
+    status[3,1] = DF;
+    status[2,1] = IF;
+    status[1,1] = ZF;
+    status[0,1] = CF;
+    push8(status);
+}
+
+macro push_status_emulation() {
+    local status:1 = 0;
+    status[7,1] = NF;
+    status[6,1] = VF;
+    # bit 5 unused
+    status[4,1] = BF;
+    status[3,1] = DF;
+    status[2,1] = IF;
+    status[1,1] = ZF;
+    status[0,1] = CF;
+    push8(status);
+}
+
+# Does not support setting the context flags MF, XF.
+macro pull_status_native() {
+    local status:1;
+    pull8(status);
+    NF = status[7,1];
+    VF = status[6,1];
+    # MF = status[5,1];
+    # XF = status[4,1];
+    DF = status[3,1];
+    IF = status[2,1];
+    ZF = status[1,1];
+    CF = status[0,1];
+}
+
+macro pull_status_emulation() {
+    local status:1;
+    pull8(status);
+    NF = status[7,1];
+    VF = status[6,1];
+    # bit 5 unused
+    BF = status[4,1];
+    DF = status[3,1];
+    IF = status[2,1];
+    ZF = status[1,1];
+    CF = status[0,1];
+}
+
+
+# TODO: is explicit use of const space necessary?
+# TODO: for all operations that affect the stack, limit the stack pointer when in emulation mode.
+# TODO: make sure we're using the data bank register when reading.
+# TODO: make sure addressing modes/data access is wrapping to stay within banks if necessary.
+
+# In the 6502/65C02, the effective address formed using zero page indexed addressing from a zero page
+# base address of $F0 and an index of $20 is $10; that is, zero page indexed effective addresses wrap around to
+# always remain in the zero page. In the emulation mode this is also true. But in native mode, there is no page
+# wraparound: a direct page starting at $2000 combined with a direct page base of $20 and a sixteen-bit index
+# holding $300 results in an effective address of $2320.  (p52)
+
+# [Speaking about the 65802] While the direct page can be set to the zero page, direct page indexed addresses can cross pages
+# in native mode, but wrap on the 6502.  (p58)
+
+# Index wrapping is described on p98.
+# Addressing mode syntax on p155.
+
+# [Speaking about the 658xx] Pay particular attention to the peculiarities of the direct page in the emulation mode: as with the 6502
+# and 65C02, instructions which use direct page addressing modes will [appear to?] “wrap” to stay within the zero page, but
+# only when the direct page register is equal to zero. Opcodes which are not found on the 6502 or 65C02 will not
+# wrap at all, even when the direct page is equal to zero in the emulation mode.  (p278)
+
+# Absolute.
+# Always with DBR for the primary group instructions. No change when emulation mode.
+ADDR_ABS: !$imm16    is imm16  {
+    local tmp:3;
+    make_addr24(tmp, DBR, imm16);
+    export *:2 tmp;
+}
+
+# Stack absolute.
+ADDR_STACK_ABS: !$imm16    is imm16  {
+    local value:2 = imm16;
+    export value;
+}
+
+# Absolute long.
+# No change when emulation mode, this does not exist on the 6502.
+ADDR_ABS_LONG: >$imm24    is imm24  {
+    local tmp:3 = imm24;
+    export *:2 tmp;
+}
+
+# Direct page.
+# Emulation mode may cause offset to wrap.
+# TODO: fix this address mode.
+# A single-byte DP access will work fine, but a multi-byte access does not
+# wrap within the DP properly. Should do:
+# low ref = calculate_dp_addr24(tmp, imm8 + 0)
+# high ref = calculate_dp_addr24(tmp, imm8 + 1)
+# But this will require ALL addressing modes to export complicated multi-byte
+# references, and read/write will become more complex in all instruction
+# implementations...
+ADDR_DP: <$imm8    is imm8  {
+    local tmp:3;
+    calculate_dp_addr24(tmp, imm8);
+    export *:2 tmp;
+}
+
+# Direct page indirect.
+# No change when emulation mode, this does not exist on the 6502.
+# TODO: fix this address mode.
+# Similar wrapping problem to the plain DP addressing mode.
+ADDR_DP_IND: ($imm8)    is imm8  {
+    local ind:3;
+    calculate_dp_addr24_no_emu(ind, imm8);
+
+    local addr16:2 = * ind;
+
+    local ea:3;
+    make_addr24(ea, DBR, addr16);
+    export *:2 ea;
+}
+
+# Stack direct page indirect.
+# TODO: fix this address mode.
+# Similar wrapping problem to the plain DP addressing mode.
+ADDR_STACK_DP_IND: ($imm8)    is imm8  {
+    local ind:3;
+    calculate_dp_addr24_no_emu(ind, imm8);
+
+    local value:2 = * ind;
+    export value;
+}
+
+# Direct page indirect long.
+# No change when emulation mode, this does not exist on the 6502.
+# TODO: fix this address mode.
+# Similar wrapping problem to the plain DP addressing mode.
+ADDR_DP_IND_LONG: [$imm8]    is imm8  {
+    local ind:3;
+    calculate_dp_addr24_no_emu(ind, imm8);
+
+    local ea:3 = * ind;
+    export *:2 ea;
+}
+
+# Absolute indexed X, 8 bit mode.
+# Indexing allows the access to cross bank boundaries, and even works if the
+# access straddles the boundary.
+# TODO don't think this is affected by emulation mode?
+ADDR_ABS_IDX_X: !$imm16,"X"    is ctx_XF=1 & imm16  {
+    local base:3;
+    make_addr24(base, DBR, imm16);
+
+    local ea:3 = base + zext(XLow);
+    export *:2 ea;
+}
+# Absolute indexed X, 16 bit mode.
+# TODO don't think this is affected by emulation mode?
+ADDR_ABS_IDX_X: !$imm16,"X"    is ctx_XF=0 & imm16  {
+    local base:3;
+    make_addr24(base, DBR, imm16);
+
+    local ea:3 = base + zext(X);
+    export *:2 ea;
+}
+
+# Absolute long indexed X, 8 bit mode.
+# Indexing allows the access to cross bank boundaries, and even works if the
+# access straddles the boundary.
+# No change when emulation mode.
+ADDR_ABS_LONG_IND_X: >$imm24,"X"    is ctx_XF=1 & imm24  {
+    local base:3 = imm24;
+
+    local ea:3 = base + zext(XLow);
+    export *:2 ea;
+}
+# Absolute long indexed X, 16 bit mode.
+ADDR_ABS_LONG_IND_X: >$imm24,"X"    is ctx_XF=0 & imm24  {
+    local base:3 = imm24;
+
+    local ea:3 = base + zext(X);
+    export *:2 ea;
+}
+
+# Absolute indexed Y, 8 bit mode.
+# Indexing allows the access to cross bank boundaries, and even works if the
+# access straddles the boundary.
+# TODO don't think this is affected by emulation mode?
+ADDR_ABS_IDX_Y: !$imm16,"Y"    is ctx_XF=1 & imm16  {
+    local base:3;
+    make_addr24(base, DBR, imm16);
+
+    local ea:3 = base + zext(YLow);
+    export *:2 ea;
+}
+# Absolute indexed Y, 16 bit mode.
+# TODO don't think this is affected by emulation mode?
+ADDR_ABS_IDX_Y: !$imm16,"Y"    is ctx_XF=0 & imm16  {
+    local base:3;
+    make_addr24(base, DBR, imm16);
+
+    local ea:3 = base + zext(Y);
+    export *:2 ea;
+}
+
+# Accumulator.
+ADDR_ACC: "A"    is epsilon  {
+    export *:2 C;
+}
+
+# Direct page indexed X.
+# Emulation mode may restrict addresses to the zero page.
+# TODO: fix this address mode.
+# Similar wrapping problem to the plain DP addressing mode.
+# Break out into 8/16 bit versions.
+ADDR_DP_IDX_X: $imm8,"X"    is imm8  {
+    local idx:2 = X;
+    if ($(XF) == 0) goto <skip_idx8>;
+    idx = zext(XLow);
+    <skip_idx8>
+
+    # DP + imm8 + X, then set bank to 0.
+    local imm8_1:1 = imm8;
+    local imm8_2:2 = zext(imm8_1);
+    local ea:3 = zext(DP + imm8_2 + idx);
+
+    # Restrict to the zero page if emulation mode and DP=0.
+    if (!( ($(EF)==1) && (DP == 0) )) goto <skip_emu>;
+    ea = ea & 0xFF;
+    <skip_emu>
+
+    export *:2 ea;
+}
+
+# Direct page indexed Y.
+# Emulation mode may restrict addresses to the zero page.
+# TODO: fix this address mode.
+# Similar wrapping problem to the plain DP addressing mode.
+# Break out into 8/16 bit versions.
+ADDR_DP_IDX_Y: $imm8,"Y"    is imm8  {
+    local idx:2 = Y;
+    if ($(XF) == 0) goto <skip_idx8>;
+    idx = zext(YLow);
+    <skip_idx8>
+
+    # DP + imm8 + Y, then set bank to 0.
+    local imm8_1:1 = imm8;
+    local imm8_2:2 = zext(imm8_1);
+    local ea:3 = zext(DP + imm8_2 + idx);
+
+    # Restrict to the zero page if emulation mode and DP=0.
+    if (!( ($(EF)==1) && (DP == 0) )) goto <skip_emu>;
+    ea = ea & 0xFF;
+    <skip_emu>
+
+    export *:2 ea;
+}
+
+# Direct page indexed indirect X.
+# Emulation mode restricts indirection addresses to the direct page.
+# TODO: fix this address mode.
+# Similar wrapping problem to the plain DP addressing mode.
+# Break out into 8/16 bit versions.
+ADDR_DP_IDX_X_IND: (<$imm8,"X")    is imm8  {
+    local idx:2 = X;
+    # For this constructor sleigh has decided that it can't infer the bool size for some reason...
+    local is_not_idx8:1 = $(XF) == 0;
+    if (is_not_idx8) goto <skip_idx8>;
+    idx = zext(XLow);
+    <skip_idx8>
+
+    local ind:3;
+    local is_not_emu:1 = $(EF) == 0;
+    if (is_not_emu) goto <not_emu>;
+
+    <emu>
+    # When the offset exceeds 0xFF it wraps.
+    offset:2 = zext(imm8) + idx;
+    ind = zext(DP + offset);
+    goto <end>;
+
+    <not_emu>
+    # The indirection address wraps to stay in bank 0.
+    ind = zext(DP + zext(imm8) + idx);
+
+    <end>
+
+    local ea:3;
+    make_addr24(ea, DBR, (*:2 ind));
+
+    export *:2 ea;
+}
+
+# Direct page indirect, indexed Y.
+# "The array of memory accessible to the indirect indexed addressing mode can extend beyond the
+# current 64K data bank into the next 64K bank, if the index plus the array base exceeds $FFFF."
+# TODO: fix this address mode.
+# Similar wrapping problem to the plain DP addressing mode.
+# Break out into 8/16 bit versions.
+ADDR_DP_IND_IDX_Y: ($imm8),"Y"    is imm8  {
+    local ind:2;
+    read16_dp_offset(ind, imm8);
+
+    local base_ea:3;
+    make_addr24(base_ea, DBR, ind);
+
+    local idx:3 = zext(Y);
+    if ($(XF) == 0) goto <skip_idx8>;
+    idx = zext(YLow);
+    <skip_idx8>
+
+    local ea:3 = base_ea + idx;
+    export *:2 ea;
+}
+
+# Direct page indirect long, indexed Y.
+# TODO: fix this address mode.
+# Similar wrapping problem to the plain DP addressing mode.
+# Break out into 8/16 bit versions.
+ADDR_DP_IND_LONG_IDX_Y: [$imm8],"Y"    is imm8  {
+    local ind:3;
+    read24_dp_offset(ind, imm8);
+
+    local idx:3 = zext(Y);
+    if ($(XF) == 0) goto <skip_idx8>;
+    idx = zext(YLow);
+    <skip_idx8>
+
+    local ea:3 = ind + idx;
+    export *:2 ea;
+}
+
+# Stack relative.
+# TODO: fix this address mode.
+# Similar wrapping problem to the plain DP addressing mode.
+ADDR_SR: $imm8,"S"    is imm8  {
+    local offset:2 = zext(imm8);
+    local addr16:2 = SP + offset;
+
+    local tmp:3;
+    make_addr24(tmp, 0, addr16);
+    export *:2 tmp;
+}
+
+# Stack relative indirect, indexed Y.
+# TODO: fix this address mode.
+# Similar wrapping problem to the plain DP addressing mode.
+# Break out into 8/16 bit versions.
+ADDR_SR_IND_IDX_Y: ($imm8,"S"),"Y"    is imm8  {
+    local imm8_1:1 = imm8;
+    local stack_addr16:2 = SP + zext(imm8_1);
+
+    local ind_lo_addr:3;
+    make_addr24(ind_lo_addr, 0, stack_addr16);
+    local ind_lo:1 = *ind_lo_addr;
+    local ind_hi_addr:3;
+    make_addr24(ind_hi_addr, 0, stack_addr16 + 1);
+    local ind_hi:1 = *ind_hi_addr;
+    local ind:2 = (zext(ind_hi) << 8) | zext(ind_lo);
+
+    local ea_base:3;
+    make_addr24(ea_base, DBR, ind);
+
+    local idx:3 = zext(Y);
+    if ($(XF) == 0) goto <skip_idx8>;
+    idx = zext(YLow);
+    <skip_idx8>
+
+    local ea:3 = ea_base + idx;
+    export *:2 ea;
+}
+
+# Immediate, 8 bit mode.
+ADDR_IMM8: #$imm8    is imm8  {
+    local imm8_1:1 = imm8;
+    local value:2 = zext(imm8_1);
+    export value;
+}
+
+# Immediate, 16 bit mode.
+ADDR_IMM16: #$imm16    is imm16  {
+    local value:2 = imm16;
+    export value;
+}
+
+# Immediate, size determined by MF.
+ADDR_IMM: ADDR_IMM8    is ctx_MF=1 & ADDR_IMM8  {
+    export ADDR_IMM8;
+}
+ADDR_IMM: ADDR_IMM16    is ctx_MF=0 & ADDR_IMM16  {
+    export ADDR_IMM16;
+}
+
+# PC relative. For branches only.
+# Wraps to stay within the bank of the current instruction.
+ADDR_PC_REL_BRA: reloc    is rel8
+    [ reloc = (inst_start $and 0xff0000) $or ((inst_next + rel8) $and 0x00ffff); ]
+{
+    export *:3 reloc;
+}
+
+# PC relative long. For branches only.
+# Wraps to stay within the bank of the current instruction.
+ADDR_PC_REL_LONG_BRA: reloc    is rel16
+    [ reloc = (inst_start $and 0xff0000) $or ((inst_next + rel16) $and 0x00ffff); ]
+{
+    export *:3 reloc;
+}
+
+# Absolute. For jumps only (uses PBR not DBR).
+ADDR_ABS_JMP: !$imm16    is imm16  {
+    local tmp:3;
+    make_addr24(tmp, PBR, imm16);
+    export *:3 tmp;
+}
+
+# Absolute long. For jumps only.
+ADDR_ABS_LONG_JMP: >$imm24    is imm24
+{
+    local tmp:3 = imm24;
+    export *:3 tmp;
+}
+
+# Absolute indexed indirect, 8 bit mode. For jumps only.
+ADDR_ABS_IDX_IND_JMP: ($imm16,"X")    is ctx_XF=1 & imm16
+{
+    # Accessing the indirect address must wrap to stay within the bank.
+    local ind_lo_addr:3;
+    make_addr24(ind_lo_addr, PBR, (imm16 + zext(XLow) + 0));
+    local ind_hi_addr:3;
+    make_addr24(ind_hi_addr, PBR, (imm16 + zext(XLow) + 1));
+
+    local ind:3;
+    ind[16,8] = PBR;
+    ind[8,8] = *:1 ind_hi_addr;
+    ind[0,8] = *:1 ind_lo_addr;
+
+    local ea:3;
+    make_addr24(ea, PBR, *:2 ind);
+    export *:3 ea;
+}
+# Absolute indexed indirect, 16 bit mode. For jumps only.
+ADDR_ABS_IDX_IND_JMP: ($imm16,"X")    is ctx_XF=0 & imm16
+{
+    # Accessing the indirect address must wrap to stay within the bank.
+    # Indexing does NOT allow the indirect lookup to cross bank boundaries.
+    local ind_lo_addr:3;
+    make_addr24(ind_lo_addr, PBR, (imm16 + X + 0));
+    local ind_hi_addr:3;
+    make_addr24(ind_hi_addr, PBR, (imm16 + X + 1));
+
+    local ea:3;
+    ea[16,8] = PBR;
+    ea[8,8] = *:1 ind_hi_addr;
+    ea[0,8] = *:1 ind_lo_addr;
+    export *:3 ea;
+}
+
+# Absolute indirect. For jumps only.
+ADDR_ABS_IND_JMP: ($imm16)    is imm16
+{
+    # Accessing the indirect address must wrap to stay within bank 0.
+    # Indexing does NOT allow the indirect lookup to cross bank boundaries.
+    local ind_lo_addr:3;
+    make_addr24(ind_lo_addr, 0, (imm16 + 0));
+    local ind_hi_addr:3;
+    make_addr24(ind_hi_addr, 0, (imm16 + 1));
+
+    local ea:3;
+    ea[16,8] = PBR;
+    ea[8,8] = *:1 ind_hi_addr;
+    ea[0,8] = *:1 ind_lo_addr;
+    export *:3 ea;
+}
+
+# Absolute indirect long. For jumps only.
+ADDR_ABS_IND_LONG_JMP: [$imm16]    is imm16
+{
+    # Accessing the indirect address must wrap to stay within bank 0.
+    local ind_lo_addr:3;
+    make_addr24(ind_lo_addr, 0, (imm16 + 0));
+    local ind_hi_addr:3;
+    make_addr24(ind_hi_addr, 0, (imm16 + 1));
+    local ind_bank_addr:3;
+    make_addr24(ind_bank_addr, 0, (imm16 + 2));
+
+    local ea:3;
+    ea[16,8] = *:1 ind_bank_addr;
+    ea[8,8] = *:1 ind_hi_addr;
+    ea[0,8] = *:1 ind_lo_addr;
+    export *:3 ea;
+}
