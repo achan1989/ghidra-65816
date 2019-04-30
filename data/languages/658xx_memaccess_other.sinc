@@ -12,7 +12,8 @@ MemStackInd: (<$imm8)    is imm8  {
 
     local data_lo:1; read_direct_noemu(data_lo, offset);
     local data_hi:1; read_direct_noemu(data_hi, offset + 1);
-    $(DATA_EXPORT16);
+    local data:2; pack_lo_hi(data, data_lo, data_hi);
+    export data;
 }
 
 # Stack PC relative. For PER only, don't confuse with stack relative.

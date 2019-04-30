@@ -6,12 +6,17 @@
 # bank/page. In this situation the word being accessed is non-contiguous, and Ghidra/sleigh cannot
 # cope with this natively.
 #
-# In order to work around this limitation all memory accesses and addressing modes will have to
-# have separate 8 bit and 16 bit implementations. The 16 bit implementations will have to manually
-# account for bank/page wrapping and read/write the upper and lower bytes individually.
-# This has the side-effect of preventing the use of dynamic references when exporting from
-# constructors. And in order to work around that limitation there will need to be separate read
-# and write implementations.
+# In order to work around this limitation the addressing mode contructors will return "references"
+# to the first and second bytes of the memory access. A reference is a six byte value comprising
+# the 3 byte address of the first byte being accessed, followed by the 3 byte address of the second
+# byte being accessed.
+# Instruction constructors that make use of these addressing modes will have to manually unpack
+# and dereference these references in order to read or write to memory. This is tedious, but
+# use of macros should make this bearable.
+# Note that this scheme only works if we assume that all addressing modes access the same address
+# space (the default "bus" space). In fact some addressing modes access registers, but these are
+# not used often, so the effort required to implement a separate scheme for these cases is not
+# too bad.
 
 
 macro flag8_N(_acc) {
@@ -184,26 +189,84 @@ macro pack_lo_hi(_out, _lo, _hi) {
     _out = (hi << 8) | (lo);
 }
 
-# Read a byte from some big offset from the start of the data bank, taking wrapping into account.
-macro read_data_bank(_out, _offset32) {
+# Combine a low byte, high byte, and bank into one 24 bit word.
+# _out: the returned 24 bit word.
+# _lo: the least significant byte.
+# _hi: the middle significant byte.
+# _bank: the most significant byte.
+macro pack_lo_hi_bank(_out, _lo, _hi, _bank) {
+    local hi8:1 = _hi; local lo8:1 = _lo; local bank8:1 = _bank;
+    local bank:3 = zext(bank8); local hi:3 = zext(hi8); local lo:3 = zext(lo8);
+    _out = (bank << 16) | (hi << 8) | (lo);
+}
+
+@define REF_EXPORT "local ref:6 = (zext(ref_lo) << 24) | zext(ref_hi); export ref"
+
+# Dereference a 6 byte reference, read one byte.
+macro deref_read8(_out, _ref) {
+    local big_ref_lo:6 = _ref >> 24;
+    local ref_lo:3 = big_ref_lo:3;
+    _out = *:1 ref_lo;
+}
+
+# Dereference a 6 byte reference, read one 16 bit word.
+macro deref_read16(_out, _ref) {
+    local big_ref_lo:6 = _ref >> 24;
+    local ref_lo:3 = big_ref_lo:3;
+    local big_ref_hi:6 = _ref & 0xffffff;
+    local ref_hi:3 = big_ref_hi:3;
+    local data_lo:1 = *:1 ref_lo;
+    local data_hi:1 = *:1 ref_hi;
+    local data:2; pack_lo_hi(data, data_lo, data_hi);
+    _out = data;
+}
+
+# Dereference a 6 byte reference, write one byte.
+macro deref_write8(_data, _ref) {
+    local big_ref_lo:6 = _ref >> 24;
+    local ref_lo:3 = big_ref_lo:3;
+    *:1 ref_lo = _data;
+}
+
+# Dereference a 6 byte reference, write one 16 bit word.
+macro deref_write16(_data, _ref) {
+    local big_ref_lo:6 = _ref >> 24;
+    local ref_lo:3 = big_ref_lo:3;
+    local big_ref_hi:6 = _ref & 0xffffff;
+    local ref_hi:3 = big_ref_hi:3;
+    *:1 ref_lo = _data:1;
+    *:1 ref_hi = _data(1);
+}
+
+# Get the address of a byte at some big offset from the start of the data bank, taking wrapping
+# into account.
+macro ref_data_bank(_out, _offset32) {
     local _offset:4 = _offset32;
     local address:4 = (zext(DBR) << 16) + _offset;
-    _out = *:1 (address:3);
+    _out = address:3;
+}
+
+# Get the address of a byte at some big offset from the stack pointer, taking wrapping into account.
+macro ref_stack(_out, _offset32) {
+    local _offset:4 = _offset32;
+    local address32:4 = zext(SP) + _offset;
+    local address:3 = zext(address32:2);
+    _out = address;
 }
 
 # Read a byte from some big offset from the stack pointer, taking wrapping into account.
 macro read_stack(_out, _offset32) {
-    local _offset:4 = _offset32;
-    local address32:4 = zext(SP) + _offset;
-    local address:3 = zext(address32:2);
+    local address:3;
+    ref_stack(address, _offset32);
     _out = *:1 address;
 }
 
-# Read a byte from some big offset from the start of the direct page, taking wrapping into account.
+# Get the address of a byte at some big offset from the start of the direct page, taking wrapping
+# into account.
 # Additional (more restrictive) wrapping may occur in emulation mode under certain circumstances.
-macro read_direct(_out, _offset32) {
+macro ref_direct(_out, _offset32) {
     local _offset:4 = _offset32;
-    local _ea:3;
+    local address:3;
     if (($(EF) == 1) && (DPLow == 0)) goto <emu_read_direct>;
 
     # <not_emu_read_direct>
@@ -214,7 +277,7 @@ macro read_direct(_out, _offset32) {
     # So for this part of the macro (native-like mode) the access is modulo 16 bits (always in
     # bank 0).
     local temp:4 = zext(DP) + _offset;
-    _ea = zext(temp:2);
+    address = zext(temp:2);
     goto <end_read_direct>;
 
     <emu_read_direct>
@@ -227,17 +290,26 @@ macro read_direct(_out, _offset32) {
     #
     # This macro is for instructions that exist on the 65(C)02, so exhibit the wrapping behaviour.
     # Higan uses DP for some reason, instead of DPLow. I'm going to assume that's correct.
-    _ea = zext(DP | (_offset:1));
+    address = zext(DP | zext(_offset:1));
 
     <end_read_direct>
-    _out = *:1 _ea;
+    _out = address;
 }
 
-# Read a byte from some big offset from the start of the direct page, taking wrapping into account.
+# Read a byte at some big offset from the start of the direct page, taking wrapping into account.
+# Additional (more restrictive) wrapping may occur in emulation mode under certain circumstances.
+macro read_direct(_out, _offset32) {
+    local address:3;
+    ref_direct(address, _offset32);
+    _out = *:1 address;
+}
+
+# Get the address of a byte at some big offset from the start of the direct page, taking wrapping
+# into account.
 # No additional (more restrictive) wrapping will occur for emulation mode.
-macro read_direct_noemu(_out, _offset32) {
+macro ref_direct_noemu(_out, _offset32) {
     local _offset:4 = _offset32;
-    local _ea:3;
+    local address:3;
 
     # Quote from manual p58:
     # "While the direct page can be set to the zero page, direct page indexed addresses can cross
@@ -248,13 +320,21 @@ macro read_direct_noemu(_out, _offset32) {
     # Since this macro is for instructions that don't exist on the 65(C)02, no additional special
     # wrapping behaviour is necessary.
     local temp:4 = zext(DP) + _offset;
-    _ea = zext(temp:2);
-    _out = *:1 _ea;
+    address = zext(temp:2);
+    _out = address;
 }
 
-@define DATA_EXPORT16 "local data:2; pack_lo_hi(data, data_lo, data_hi); export data"
-@define DEREF_EA_EXPORT8 "local data:1 = *:1 ea; export data"
-@define DEREF_EA_EXPORT16 "local data:2; pack_lo_hi(data, (*:1 ea_lo), (*:1 ea_hi)); export data"
+# Read a byte at some big offset from the start of the direct page, taking wrapping into account.
+# No additional (more restrictive) wrapping will occur for emulation mode.
+macro read_direct_noemu(_out, _offset32) {
+    local address:3;
+    ref_direct_noemu(address, _offset32);
+    _out = *:1 address;
+}
+
+# @define DATA_EXPORT16 "local data:2; pack_lo_hi(data, data_lo, data_hi); export data"
+# @define DEREF_EA_EXPORT8 "local data:1 = *:1 ea; export data"
+# @define DEREF_EA_EXPORT16 "local data:2; pack_lo_hi(data, (*:1 ea_lo), (*:1 ea_hi)); export data"
 
 
 # Read the contents of the X register. Size depends on XF.
@@ -287,139 +367,88 @@ IdxY:    is ctx_XF=0  {
 
 
 # Absolute.
-MemAbsRead8: !$imm16    is imm16  {
+RefAbs: !$imm16    is imm16  {
     local offset16:2 = imm16;
     local offset:4 = zext(offset16);
-    local data:1; read_data_bank(data, offset);
-    export data;
-}
-MemAbsRead16: !$imm16    is imm16  {
-    local offset16:2 = imm16;
-    local offset:4 = zext(offset16);
-    local data_lo:1; read_data_bank(data_lo, offset);
-    local data_hi:1; read_data_bank(data_hi, offset + 1);
-    $(DATA_EXPORT16);
+    local ref_lo:3; ref_data_bank(ref_lo, offset);
+    local ref_hi:3; ref_data_bank(ref_hi, offset + 1);
+    $(REF_EXPORT);
 }
 
 # Absolute indexed by X.
 # Indexing allows the access to cross bank boundaries, and even works if the access straddles
 # the boundary.
-MemAbsIdxXRead8: !$imm16,"X"    is imm16 & IdxX  {
+RefAbsIdxX: !$imm16,"X"    is imm16 & IdxX  {
     local offset16:2 = imm16;
     local offset:4 = zext(offset16) + zext(IdxX);
-    local data:1; read_data_bank(data, offset);
-    export data;
-}
-MemAbsIdxXRead16: !$imm16,"X"    is imm16 & IdxX  {
-    local offset16:2 = imm16;
-    local offset:4 = zext(offset16) + zext(IdxX);
-    local data_lo:1; read_data_bank(data_lo, offset);
-    local data_hi:1; read_data_bank(data_hi, offset + 1);
-    $(DATA_EXPORT16);
+    local ref_lo:3; ref_data_bank(ref_lo, offset);
+    local ref_hi:3; ref_data_bank(ref_hi, offset + 1);
+    $(REF_EXPORT);
 }
 
 # Absolute indexed by Y.
 # Indexing allows the access to cross bank boundaries, and even works if the access straddles
 # the boundary.
-MemAbsIdxYRead8: !$imm16,"Y"    is imm16 & IdxY  {
+RefAbsIdxY: !$imm16,"Y"    is imm16 & IdxY  {
     local offset16:2 = imm16;
     local offset:4 = zext(offset16) + zext(IdxY);
-    local data:1; read_data_bank(data, offset);
-    export data;
-}
-MemAbsIdxYRead16: !$imm16,"Y"    is imm16 & IdxY  {
-    local offset16:2 = imm16;
-    local offset:4 = zext(offset16) + zext(IdxY);
-    local data_lo:1; read_data_bank(data_lo, offset);
-    local data_hi:1; read_data_bank(data_hi, offset + 1);
-    $(DATA_EXPORT16);
+    local ref_lo:3; ref_data_bank(ref_lo, offset);
+    local ref_hi:3; ref_data_bank(ref_hi, offset + 1);
+    $(REF_EXPORT);
 }
 
 # Absolute long.
-MemAbsLongRead8: !>$imm24    is imm24  {
-    local ea:3 = imm24;
-    $(DEREF_EA_EXPORT8);
-}
-MemAbsLongRead16: !>$imm24    is imm24  {
-    local ea_lo:3 = imm24;
-    local ea_hi:3 = ea_lo + 1;
-    $(DEREF_EA_EXPORT16);
+RefAbsLong: !>$imm24    is imm24  {
+    local ref_lo:3 = imm24;
+    local ref_hi:3 = ref_lo + 1;
+    $(REF_EXPORT);
 }
 
 # Absolute long, indexed by X.
-MemAbsLongIdxXRead8: !>$imm24,"X"    is imm24 & IdxX  {
+# Indexing allows the access to cross bank boundaries, and even works if the access straddles
+# the boundary.
+RefAbsLongIdxX: !>$imm24,"X"    is imm24 & IdxX  {
     local base:3 = imm24;
-    local ea:3 = base + zext(IdxX);
-    $(DEREF_EA_EXPORT8);
-}
-MemAbsLongIdxXRead16: !>$imm24,"X"    is imm24 & IdxX  {
-    local base:3 = imm24;
-    local ea_lo:3 = base + zext(IdxX);
-    local ea_hi:3 = ea_lo + 1;
-    $(DEREF_EA_EXPORT16);
+    local ref_lo:3 = base + zext(IdxX);
+    local ref_hi:3 = ref_lo + 1;
+    $(REF_EXPORT);
 }
 
-# Accumulator.
-MemAccRead8: "A"    is epsilon  {
-    data:1 = A;
-    export data;
-}
-MemAccRead16: "A"    is epsilon  {
-    data:2 = C;
-    export data;
-}
+# Accumulator addressing must be handled in another way.
 
 # Direct page.
 # DP access may wrap in emulation mode.
-MemDPRead8: <$imm8    is imm8  {
+RefDP: <$imm8    is imm8  {
     local offset8:1 = imm8;
     local offset:4 = zext(offset8);
-    local data:1; read_direct(data, offset);
-    export data;
-}
-MemDPRead16: <$imm8    is imm8  {
-    local offset8:1 = imm8;
-    local offset:4 = zext(offset8);
-    local data_lo:1; read_direct(data_lo, offset);
-    local data_hi:1; read_direct(data_hi, offset + 1);
-    $(DATA_EXPORT16);
+    local ref_lo:3; ref_direct(ref_lo, offset);
+    local ref_hi:3; ref_direct(ref_hi, offset + 1);
+    $(REF_EXPORT);
 }
 
 # Direct page indexed by X.
 # DP access may wrap in emulation mode.
-MemDPIdxXRead8: <$imm8,"X"    is imm8 & IdxX  {
+RefDPIdxX: <$imm8,"X"    is imm8 & IdxX  {
     local offset8:1 = imm8;
     local offset:4 = zext(offset8) + zext(IdxX);
-    local data:1; read_direct(data, offset);
-    export data;
-}
-MemDPIdxXRead16: <$imm8,"X"    is imm8 & IdxX  {
-    local offset8:1 = imm8;
-    local offset:4 = zext(offset8) + zext(IdxX);
-    local data_lo:1; read_direct(data_lo, offset);
-    local data_hi:1; read_direct(data_hi, offset + 1);
-    $(DATA_EXPORT16);
+    local ref_lo:3; ref_direct(ref_lo, offset);
+    local ref_hi:3; ref_direct(ref_hi, offset + 1);
+    $(REF_EXPORT);
 }
 
 # Direct page indexed by Y.
 # DP access may wrap in emulation mode.
-MemDPIdxYRead8: <$imm8,"Y"    is imm8 & IdxY  {
+RefDPIdxY: <$imm8,"Y"    is imm8 & IdxY  {
     local offset8:1 = imm8;
     local offset:4 = zext(offset8) + zext(IdxY);
-    local data:1; read_direct(data, offset);
-    export data;
-}
-MemDPIdxYRead16: <$imm8,"Y"    is imm8 & IdxY  {
-    local offset8:1 = imm8;
-    local offset:4 = zext(offset8) + zext(IdxY);
-    local data_lo:1; read_direct(data_lo, offset);
-    local data_hi:1; read_direct(data_hi, offset + 1);
-    $(DATA_EXPORT16);
+    local ref_lo:3; ref_direct(ref_lo, offset);
+    local ref_hi:3; ref_direct(ref_hi, offset + 1);
+    $(REF_EXPORT);
 }
 
 # Direct page indexed by X, indirect.
 # DP access may wrap in emulation mode.
-MemDPIdxIndRead8: (<$imm8,"X")    is imm8 & IdxX  {
+RefDPIdxInd: (<$imm8,"X")    is imm8 & IdxX  {
     local offset8:1 = imm8;
     local offset:4 = zext(offset8) + zext(IdxX);
 
@@ -428,26 +457,14 @@ MemDPIdxIndRead8: (<$imm8,"X")    is imm8 & IdxX  {
     local ind:2; pack_lo_hi(ind, ind_lo, ind_hi);
 
     offset = zext(ind);
-    local data:1; read_data_bank(data, offset);
-    export data;
-}
-MemDPIdxIndRead16: (<$imm8,"X")    is imm8 & IdxX  {
-    local offset8:1 = imm8;
-    local offset:4 = zext(offset8) + zext(IdxX);
-
-    local ind_lo:1; read_direct(ind_lo, offset);
-    local ind_hi:1; read_direct(ind_hi, offset + 1);
-    local ind:2; pack_lo_hi(ind, ind_lo, ind_hi);
-
-    offset = zext(ind);
-    local data_lo:1; read_data_bank(data_lo, offset);
-    local data_hi:1; read_data_bank(data_hi, offset + 1);
-    $(DATA_EXPORT16);
+    local ref_lo:3; ref_data_bank(ref_lo, offset);
+    local ref_hi:3; ref_data_bank(ref_hi, offset + 1);
+    $(REF_EXPORT);
 }
 
 # Direct page indirect.
 # DP access may wrap in emulation mode.
-MemDPIndRead8: (<$imm8)    is imm8  {
+RefDPInd: (<$imm8)    is imm8  {
     local offset8:1 = imm8;
     local offset:4 = zext(offset8);
 
@@ -456,26 +473,14 @@ MemDPIndRead8: (<$imm8)    is imm8  {
     local ind:2; pack_lo_hi(ind, ind_lo, ind_hi);
 
     offset = zext(ind);
-    local data:1; read_data_bank(data, offset);
-    export data;
-}
-MemDPIndRead16: (<$imm8)    is imm8  {
-    local offset8:1 = imm8;
-    local offset:4 = zext(offset8);
-
-    local ind_lo:1; read_direct(ind_lo, offset);
-    local ind_hi:1; read_direct(ind_hi, offset + 1);
-    local ind:2; pack_lo_hi(ind, ind_lo, ind_hi);
-
-    offset = zext(ind);
-    local data_lo:1; read_data_bank(data_lo, offset);
-    local data_hi:1; read_data_bank(data_hi, offset + 1);
-    $(DATA_EXPORT16);
+    local ref_lo:3; ref_data_bank(ref_lo, offset);
+    local ref_hi:3; ref_data_bank(ref_hi, offset + 1);
+    $(REF_EXPORT);
 }
 
 # Direct page indirect long.
 # No special wrapping.
-MemDPIndLongRead8: [<$imm8]    is imm8  {
+RefDPIndLong: [<$imm8]    is imm8  {
     local offset8:1 = imm8;
     local offset:4 = zext(offset8);
 
@@ -483,25 +488,14 @@ MemDPIndLongRead8: [<$imm8]    is imm8  {
     local ind_hi:1; read_direct_noemu(ind_hi, offset + 1);
     local ind_bank:1; read_direct_noemu(ind_bank, offset + 2);
 
-    local ea:3 = (ind_bank << 16) | (ind_hi << 8) | ind_lo;
-    $(DEREF_EA_EXPORT8);
-}
-MemDPIndLongRead16: [<$imm8]    is imm8  {
-    local offset8:1 = imm8;
-    local offset:4 = zext(offset8);
-
-    local ind_lo:1; read_direct_noemu(ind_lo, offset);
-    local ind_hi:1; read_direct_noemu(ind_hi, offset + 1);
-    local ind_bank:1; read_direct_noemu(ind_bank, offset + 2);
-
-    local ea_lo:3 = (ind_bank << 16) | (ind_hi << 8) | ind_lo;
-    local ea_hi:3 = ea_lo + 1;
-    $(DEREF_EA_EXPORT16);
+    local ref_lo:3; pack_lo_hi_bank(ref_lo, ind_lo, ind_hi, ind_bank);
+    local ref_hi:3 = ref_lo + 1;
+    $(REF_EXPORT);
 }
 
 # Direct page indirect, indexed by Y.
 # DP access may wrap in emulation mode.
-MemDPIndIdxRead8: (<$imm8),"Y"    is imm8 & IdxY  {
+RefDPIndIdx: (<$imm8),"Y"    is imm8 & IdxY  {
     local offset8:1 = imm8;
     local offset:4 = zext(offset8);
 
@@ -510,26 +504,14 @@ MemDPIndIdxRead8: (<$imm8),"Y"    is imm8 & IdxY  {
     local ind:2; pack_lo_hi(ind, ind_lo, ind_hi);
 
     offset = zext(ind) + zext(IdxY);
-    local data:1; read_data_bank(data, offset);
-    export data;
-}
-MemDPIndIdxRead16: (<$imm8),"Y"    is imm8 & IdxY  {
-    local offset8:1 = imm8;
-    local offset:4 = zext(offset8);
-
-    local ind_lo:1; read_direct(ind_lo, offset);
-    local ind_hi:1; read_direct(ind_hi, offset + 1);
-    local ind:2; pack_lo_hi(ind, ind_lo, ind_hi);
-
-    offset = zext(ind) + zext(IdxY);
-    local data_lo:1; read_data_bank(data_lo, offset);
-    local data_hi:1; read_data_bank(data_hi, offset + 1);
-    $(DATA_EXPORT16);
+    local ref_lo:3; ref_data_bank(ref_lo, offset);
+    local ref_hi:3; ref_data_bank(ref_hi, offset + 1);
+    $(REF_EXPORT);
 }
 
 # Direct page indirect long, indexed by Y.
 # No special wrapping.
-MemDPIndLongIdxRead8: [<$imm8],"Y"    is imm8 & IdxY  {
+RefDPIndLongIdx: [<$imm8],"Y"    is imm8 & IdxY  {
     local offset8:1 = imm8;
     local offset:4 = zext(offset8);
 
@@ -537,58 +519,46 @@ MemDPIndLongIdxRead8: [<$imm8],"Y"    is imm8 & IdxY  {
     local ind_hi:1; read_direct_noemu(ind_hi, offset + 1);
     local ind_bank:1; read_direct_noemu(ind_bank, offset + 2);
 
-    local ea:3 = ((ind_bank << 16) | (ind_hi << 8) | ind_lo) + zext(IdxY);
-    $(DEREF_EA_EXPORT8);
-}
-MemDPIndLongIdxRead16: [<$imm8],"Y"    is imm8 & IdxY  {
-    local offset8:1 = imm8;
-    local offset:4 = zext(offset8);
-
-    local ind_lo:1; read_direct_noemu(ind_lo, offset);
-    local ind_hi:1; read_direct_noemu(ind_hi, offset + 1);
-    local ind_bank:1; read_direct_noemu(ind_bank, offset + 2);
-
-    local ea_lo:3 = ((ind_bank << 16) | (ind_hi << 8) | ind_lo) + zext(IdxY);
-    local ea_hi:3 = ea_lo + 1;
-    $(DEREF_EA_EXPORT16);
+    local ref_lo:3; pack_lo_hi_bank(ref_lo, ind_lo, ind_hi, ind_bank);
+    ref_lo = ref_lo + zext(IdxY);
+    local ref_hi:3 = ref_lo + 1;
+    $(REF_EXPORT);
 }
 
 # Immediate.
-MemImmRead8: #$imm8    is imm8  {
-    local imm:1 = imm8;
-    export imm;
+# In 8 bit mode you must not dereference the second byte.
+# TODO: not correct if the instruction and operand(s) wrap at the end of the
+# program bank.
+RefImm8: #$imm8    is imm8  {
+    local ref_lo:3 = inst_start + 1;
+    local ref_hi:3 = ref_lo + 1;  # Do not access.
+    $(REF_EXPORT);
 }
-MemImmRead16: #$imm8    is imm16  {
-    local imm:2 = imm16;
-    export imm;
+RefImm16: #$imm16    is imm16  {
+    local ref_lo:3 = inst_start + 1;
+    local ref_hi:3 = ref_lo + 1;
+    $(REF_EXPORT);
 }
 # Select the size based on MF.
-MemImmReadMF: MemImmRead8    is ctx_MF=1 & MemImmRead8  {
-    export MemImmRead8;
+RefImmMF: RefImm8    is ctx_MF=1 & RefImm8  {
+    export RefImm8;
 }
-MemImmReadMF: MemImmRead16    is ctx_MF=0 & MemImmRead16  {
-    export MemImmRead16;
+RefImmMF: RefImm16    is ctx_MF=0 & RefImm16  {
+    export RefImm16;
 }
 
 # Stack relative.
-MemSRRead8: $imm8,"S"    is imm8  {
+RefSR: $imm8,"S"    is imm8  {
     local imm:1 = imm8;
     local offset:4 = zext(imm);
 
-    local data:1; read_stack(data, offset);
-    export data;
-}
-MemSRRead16: $imm8,"S"    is imm8  {
-    local imm:1 = imm8;
-    local offset:4 = zext(imm);
-
-    local data_lo:1; read_stack(data_lo, offset);
-    local data_hi:1; read_stack(data_hi, offset + 1);
-    $(DATA_EXPORT16);
+    local ref_lo:3; ref_stack(ref_lo, offset);
+    local ref_hi:3; ref_stack(ref_hi, offset + 1);
+    $(REF_EXPORT);
 }
 
 # Stack relative indirect, indexed by Y.
-MemSRIndRead8: ($imm8,"S"),"Y"    is imm8 & IdxY  {
+RefSRIndIdx: ($imm8,"S"),"Y"    is imm8 & IdxY  {
     local imm:1 = imm8;
     local offset:4 = zext(imm);
 
@@ -597,19 +567,7 @@ MemSRIndRead8: ($imm8,"S"),"Y"    is imm8 & IdxY  {
     local ind:2; pack_lo_hi(ind, ind_lo, ind_hi);
 
     offset = zext(ind) + zext(IdxY);
-    local data:1; read_data_bank(data, offset);
-    export data;
-}
-MemSRIndRead16: ($imm8,"S"),"Y"    is imm8 & IdxY  {
-    local imm:1 = imm8;
-    local offset:4 = zext(imm);
-
-    local ind_lo:1; read_stack(ind_lo, offset);
-    local ind_hi:1; read_stack(ind_hi, offset + 1);
-    local ind:2; pack_lo_hi(ind, ind_lo, ind_hi);
-
-    offset = zext(ind) + zext(IdxY);
-    local data_lo:1; read_data_bank(data_lo, offset);
-    local data_hi:1; read_data_bank(data_hi, offset + 1);
-    $(DATA_EXPORT16);
+    local ref_lo:3; ref_data_bank(ref_lo, offset);
+    local ref_hi:3; ref_data_bank(ref_hi, offset + 1);
+    $(REF_EXPORT);
 }
