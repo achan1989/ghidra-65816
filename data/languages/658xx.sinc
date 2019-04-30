@@ -67,6 +67,7 @@ define token repsep (8)
 
 define token data16 (16)
     imm16 = (0,15)
+    abs16 = (0,15)
     rel16 = (0,15) signed
 ;
 
@@ -126,24 +127,20 @@ PRIMARY_OP_NO_IMM_READ16: MemSRIndRead16    is bbb=4 & cc=3; MemSRIndRead16  { e
 #
 PRIMARY_OP_READ8: PRIMARY_OP_NO_IMM_READ8    is PRIMARY_OP_NO_IMM_READ8  { export PRIMARY_OP_NO_IMM_READ8; }
 PRIMARY_OP_READ8: MemImmRead8    is bbb=2 & cc=1; MemImmRead8  { export MemImmRead8; }
-#
 PRIMARY_OP_READ16: PRIMARY_OP_NO_IMM_READ16    is PRIMARY_OP_NO_IMM_READ16  { export PRIMARY_OP_NO_IMM_READ16; }
 PRIMARY_OP_READ16: MemImmRead16    is bbb=2 & cc=1; MemImmRead16  { export MemImmRead16; }
-
 
 # Subsets of the addressing modes for some secondary instructions (most of the remaining
 # instructions that aren't branches/jumps and don't use implied addressing).
 #
 SEC_OP_COMMON_READ8: MemAbsRead8    is bbb=3; MemAbsRead8  { export MemAbsRead8; }
 SEC_OP_COMMON_READ8: MemDPRead8    is bbb=1; MemDPRead8  { export MemDPRead8; }
-#
 SEC_OP_COMMON_READ16: MemAbsRead16    is bbb=3; MemAbsRead16  { export MemAbsRead16; }
 SEC_OP_COMMON_READ16: MemDPRead16    is bbb=1; MemDPRead16  { export MemDPRead16; }
 #
 SEC_OP_X_READ8: SEC_OP_COMMON_READ8    is SEC_OP_COMMON_READ8  { export SEC_OP_COMMON_READ8; }
 SEC_OP_X_READ8: MemAbsIdxXRead8    is bbb=7; MemAbsIdxXRead8  { export MemAbsIdxXRead8; }
 SEC_OP_X_READ8: MemDPIdxXRead8    is bbb=5; MemDPIdxXRead8  { export MemDPIdxXRead8; }
-#
 SEC_OP_X_READ16: SEC_OP_COMMON_READ16    is SEC_OP_COMMON_READ16  { export SEC_OP_COMMON_READ16; }
 SEC_OP_X_READ16: MemAbsIdxXRead16    is bbb=7; MemAbsIdxXRead16  { export MemAbsIdxXRead16; }
 SEC_OP_X_READ16: MemDPIdxXRead16    is bbb=5; MemDPIdxXRead16  { export MemDPIdxXRead16; }
@@ -151,13 +148,14 @@ SEC_OP_X_READ16: MemDPIdxXRead16    is bbb=5; MemDPIdxXRead16  { export MemDPIdx
 SEC_OP_Y_READ8: SEC_OP_COMMON_READ8    is SEC_OP_COMMON_READ8  { export SEC_OP_COMMON_READ8; }
 SEC_OP_Y_READ8: MemAbsIdxYRead8    is bbb=7; MemAbsIdxYRead8  { export MemAbsIdxYRead8; }
 SEC_OP_Y_READ8: MemDPIdxYRead8    is bbb=5; MemDPIdxYRead8  { export MemDPIdxYRead8; }
-#
 SEC_OP_Y_READ16: SEC_OP_COMMON_READ16    is SEC_OP_COMMON_READ16  { export SEC_OP_COMMON_READ16; }
 SEC_OP_Y_READ16: MemAbsIdxYRead16    is bbb=7; MemAbsIdxYRead16  { export MemAbsIdxYRead16; }
 SEC_OP_Y_READ16: MemDPIdxYRead16    is bbb=5; MemDPIdxYRead16  { export MemDPIdxYRead16; }
-
-#### SHIFT_OP: SEC_OP_X    is SEC_OP_X  { export SEC_OP_X; }
-#### SHIFT_OP: ADDR_ACC    is bbb=2; ADDR_ACC  { export ADDR_ACC; }
+#
+SHIFT_OP_READ8: SEC_OP_X_READ8    is SEC_OP_X_READ8  { export SEC_OP_X_READ8; }
+SHIFT_OP_READ8: MemAccRead8    is bbb=2; MemAccRead8  { export MemAccRead8; }
+SHIFT_OP_READ16: SEC_OP_X_READ16    is SEC_OP_X_READ16  { export SEC_OP_X_READ16; }
+SHIFT_OP_READ16: MemAccRead16    is bbb=2; MemAccRead16  { export MemAccRead16; }
 
 
 ##################################################################
@@ -292,28 +290,83 @@ SEC_OP_Y_READ16: MemDPIdxYRead16    is bbb=5; MemDPIdxYRead16  { export MemDPIdx
     flag16_NZ(C);
 }
 
-# ASL 8 bit.
-:ASL SHIFT_OP    is (ctx_MF=1 &
-    (op=0x0a | op=0x0e | op=0x06 | op=0x1e | op=0x16)) ... & SHIFT_OP
-{
-    local data:1 = SHIFT_OP:1;
+macro asl_algo8(_result, _data)  {
+    local data:1 = _data;
     local result:1 = data << 1;
 
-    SHIFT_OP[0,8] = result;
     flag8_NZ(result);
     CF = data[7,1];
+    _result = result;
+}
+macro asl_algo16(_result, _data)  {
+    local data:2 = _data;
+    local result:2 = data << 1;
+
+    flag16_NZ(result);
+    CF = data[15,1];
+    _result = result;
+}
+
+# ASL 8 bit.
+:ASL $(disp_acc)    is (ctx_MF=1 & op=0x0a)
+{
+    local data:1 = A;
+    local result:1; asl_algo8(result, data);
+    MemAccWrite8(result);
+}
+# NFG because of read-modify-write
+# ASL 8 bit.
+:ASL SHIFT_OP_READ8    is (ctx_MF=1 & op=0x0a) ... & SHIFT_OP_READ8
+{
+    local result:1; asl_algo8(result, SHIFT_OP_READ8);
+    MemAccWrite8(result);
+}
+:ASL SHIFT_OP_READ8    is (ctx_MF=1 & op=0x0e) ... & SHIFT_OP_READ8
+{
+    local result:1; asl_algo8(result, SHIFT_OP_READ8);
+    MemAbsWrite8(result);
+}
+:ASL SHIFT_OP_READ8    is (ctx_MF=1 & op=0x06) ... & SHIFT_OP_READ8
+{
+    local result:1; asl_algo8(result, SHIFT_OP_READ8);
+    MemDPWrite8(result);
+}
+:ASL SHIFT_OP_READ8    is (ctx_MF=1 & op=0x1e) ... & SHIFT_OP_READ8
+{
+    local result:1; asl_algo8(result, SHIFT_OP_READ8);
+    MemAbsIdxXWrite8(result);
+}
+:ASL SHIFT_OP_READ8    is (ctx_MF=1 & op=0x16) ... & SHIFT_OP_READ8
+{
+    local result:1; asl_algo8(result, SHIFT_OP_READ8);
+    MemDPIdxXWrite8(result);
 }
 
 # ASL 16 bit.
-:ASL SHIFT_OP    is (ctx_MF=0 &
-    (op=0x0a | op=0x0e | op=0x06 | op=0x1e | op=0x16)) ... & SHIFT_OP
+:ASL SHIFT_OP_READ16    is (ctx_MF=1 & op=0x0a) ... & SHIFT_OP_READ16
 {
-    local data:2 = SHIFT_OP;
-    local result:2 = data << 1;
-
-    SHIFT_OP = result;
-    flag16_NZ(result);
-    CF = data[15,1];
+    local result:2; asl_algo16(result, SHIFT_OP_READ16);
+    MemAccWrite16(result);
+}
+:ASL SHIFT_OP_READ16    is (ctx_MF=1 & op=0x0e) ... & SHIFT_OP_READ16
+{
+    local result:2; asl_algo16(result, SHIFT_OP_READ16);
+    MemAbsWrite16(result);
+}
+:ASL SHIFT_OP_READ16    is (ctx_MF=1 & op=0x06) ... & SHIFT_OP_READ16
+{
+    local result:2; asl_algo16(result, SHIFT_OP_READ16);
+    MemDPWrite16(result);
+}
+:ASL SHIFT_OP_READ16    is (ctx_MF=1 & op=0x1e) ... & SHIFT_OP_READ16
+{
+    local result:2; asl_algo16(result, SHIFT_OP_READ16);
+    MemAbsIdxXWrite16(result);
+}
+:ASL SHIFT_OP_READ16    is (ctx_MF=1 & op=0x16) ... & SHIFT_OP_READ16
+{
+    local result:2; asl_algo16(result, SHIFT_OP_READ16);
+    MemDPIdxXWrite16(result);
 }
 
 :BCC ADDR_PC_REL_BRA    is op=0x90; ADDR_PC_REL_BRA

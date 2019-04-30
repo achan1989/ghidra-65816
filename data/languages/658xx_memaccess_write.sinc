@@ -1,0 +1,27 @@
+# Absolute.
+macro MemAbsWrite8(data) {
+    todo;
+}
+
+# Absolute indexed by X.
+# Indexing allows the access to cross bank boundaries, and even works if the access straddles
+# the boundary.
+macro MemAbsIdxXWrite8(data) {
+    todo;
+}
+
+# Accumulator.
+macro MemAccWrite8(data) {
+    todo;
+}
+
+# Direct page.
+macro MemDPWrite8(data) {
+    todo;
+}
+
+# Direct page indexed by X.
+# DP access may wrap in emulation mode.
+macro MemDPIdxXWrite8(data) {
+    todo;
+}

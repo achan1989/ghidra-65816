@@ -279,5 +279,6 @@ IdxY:    is ctx_XF=0  {
 
 
 @include "658xx_memaccess_read.sinc"
+@include "658xx_memaccess_write.sinc"
 @include "658xx_memaccess_pc.sinc"
 @include "658xx_memaccess_other.sinc"
