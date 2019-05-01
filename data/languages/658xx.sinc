@@ -134,21 +134,21 @@ SHIFT_OP: SEC_OP_X    is SEC_OP_X  { export SEC_OP_X; }
 # Specify instruction patterns and semantics.
 ##################################################################
 
-# ADC 8 bit binary.
+# ADC 8 bit.
 :ADC PRIMARY_OP    is (ctx_MF=1 &
     (op=0x69 | op=0x6d | op=0x6f | op=0x65 | op=0x72 | op=0x67 | op=0x7d |
      op=0x7f | op=0x79 | op=0x75 | op=0x61 | op=0x71 | op=0x77 | op=0x63 |
      op=0x73)) ... & PRIMARY_OP
 {
-    local is_dec:1 = DF == 1;
-    local not_dec:1 = DF == 0;
+    local is_dec:1 = DF;
+    local not_dec:1 = !DF;
     local do_skip_dec_adjust:1;
     local data:1; deref_read8(data, PRIMARY_OP);
     local result:4;
 
     if (is_dec) goto <decimal>;
 
-    <binary>
+    # <binary>
     result = zext(A) + zext(data) + zext(CF);
     goto <flags>;
 
@@ -179,21 +179,21 @@ SHIFT_OP: SEC_OP_X    is SEC_OP_X  { export SEC_OP_X; }
     A = result8;
 }
 
-# ADC 16 bit binary.
+# ADC 16 bit.
 :ADC PRIMARY_OP    is (ctx_MF=0 &
     (op=0x69 | op=0x6d | op=0x6f | op=0x65 | op=0x72 | op=0x67 | op=0x7d |
      op=0x7f | op=0x79 | op=0x75 | op=0x61 | op=0x71 | op=0x77 | op=0x63 |
      op=0x73)) ... & PRIMARY_OP
 {
-    local is_dec:1 = DF == 1;
-    local not_dec:1 = DF == 0;
+    local is_dec:1 = DF;
+    local not_dec:1 = !DF;
     local do_skip_dec_adjust:1;
     local data:2; deref_read16(data, PRIMARY_OP);
     local result:4;
 
     if (is_dec) goto <decimal>;
 
-    <binary>
+    # <binary>
     result = zext(C) + zext(data) + zext(CF);
     goto <flags>;
 
