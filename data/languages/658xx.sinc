@@ -89,44 +89,45 @@ define token data24 (24)
 # Two subsets of the addressing modes for the primary group instructions
 # (ADC, AND, CMP, EOR, LDA, ORA, SBC, STA).
 #
-# PRIMARY_OP_NO_IMM is the whole subset except for ADDR_IMM (can't STA to an immediate).
+# PRIMARY_OP_NO_IMM is the whole subset except for immediate addressing (can't STA to an immediate).
 #
-PRIMARY_OP_NO_IMM: ADDR_ABS    is bbb=3 & cc=1; ADDR_ABS  { export ADDR_ABS; }
-PRIMARY_OP_NO_IMM: ADDR_ABS_LONG    is bbb=3 & cc=3; ADDR_ABS_LONG  { export ADDR_ABS_LONG; }
-PRIMARY_OP_NO_IMM: ADDR_DP    is bbb=1 & cc=1; ADDR_DP  { export ADDR_DP; }
-PRIMARY_OP_NO_IMM: ADDR_DP_IND    is bbb=4 & cc=2; ADDR_DP_IND  { export ADDR_DP_IND; }
-PRIMARY_OP_NO_IMM: ADDR_DP_IND_LONG    is bbb=1 & cc=3; ADDR_DP_IND_LONG  { export ADDR_DP_IND_LONG; }
-PRIMARY_OP_NO_IMM: ADDR_ABS_IDX_X    is bbb=7 & cc=1; ADDR_ABS_IDX_X  { export ADDR_ABS_IDX_X; }
-PRIMARY_OP_NO_IMM: ADDR_ABS_LONG_IND_X    is bbb=7 & cc=3; ADDR_ABS_LONG_IND_X  { export ADDR_ABS_LONG_IND_X; }
-PRIMARY_OP_NO_IMM: ADDR_ABS_IDX_Y    is bbb=6 & cc=1; ADDR_ABS_IDX_Y  { export ADDR_ABS_IDX_Y; }
-PRIMARY_OP_NO_IMM: ADDR_DP_IDX_X    is bbb=5 & cc=1; ADDR_DP_IDX_X  { export ADDR_DP_IDX_X; }
-PRIMARY_OP_NO_IMM: ADDR_DP_IDX_X_IND    is bbb=0 & cc=1; ADDR_DP_IDX_X_IND  { export ADDR_DP_IDX_X_IND; }
-PRIMARY_OP_NO_IMM: ADDR_DP_IND_IDX_Y    is bbb=4 & cc=1; ADDR_DP_IND_IDX_Y  { export ADDR_DP_IND_IDX_Y; }
-PRIMARY_OP_NO_IMM: ADDR_DP_IND_LONG_IDX_Y    is bbb=5 & cc=3; ADDR_DP_IND_LONG_IDX_Y  { export ADDR_DP_IND_LONG_IDX_Y; }
-PRIMARY_OP_NO_IMM: ADDR_SR    is bbb=0 & cc=3; ADDR_SR  { export ADDR_SR; }
-PRIMARY_OP_NO_IMM: ADDR_SR_IND_IDX_Y    is bbb=4 & cc=3; ADDR_SR_IND_IDX_Y  { export ADDR_SR_IND_IDX_Y; }
+PRIMARY_OP_NO_IMM: RefAbs    is bbb=3 & cc=1; RefAbs  { export RefAbs; }
+PRIMARY_OP_NO_IMM: RefAbsLong    is bbb=3 & cc=3; RefAbsLong  { export RefAbsLong; }
+PRIMARY_OP_NO_IMM: RefDP    is bbb=1 & cc=1; RefDP  { export RefDP; }
+PRIMARY_OP_NO_IMM: RefDPInd    is bbb=4 & cc=2; RefDPInd  { export RefDPInd; }
+PRIMARY_OP_NO_IMM: RefDPIndLong    is bbb=1 & cc=3; RefDPIndLong  { export RefDPIndLong; }
+PRIMARY_OP_NO_IMM: RefAbsIdxX    is bbb=7 & cc=1; RefAbsIdxX  { export RefAbsIdxX; }
+PRIMARY_OP_NO_IMM: RefAbsLongIdxX    is bbb=7 & cc=3; RefAbsLongIdxX  { export RefAbsLongIdxX; }
+PRIMARY_OP_NO_IMM: RefAbsIdxY    is bbb=6 & cc=1; RefAbsIdxY  { export RefAbsIdxY; }
+PRIMARY_OP_NO_IMM: RefDPIdxX    is bbb=5 & cc=1; RefDPIdxX  { export RefDPIdxX; }
+PRIMARY_OP_NO_IMM: RefDPIdxInd    is bbb=0 & cc=1; RefDPIdxInd  { export RefDPIdxInd; }
+PRIMARY_OP_NO_IMM: RefDPIndIdx    is bbb=4 & cc=1; RefDPIndIdx  { export RefDPIndIdx; }
+PRIMARY_OP_NO_IMM: RefDPIndLongIdx    is bbb=5 & cc=3; RefDPIndLongIdx  { export RefDPIndLongIdx; }
+PRIMARY_OP_NO_IMM: RefSR    is bbb=0 & cc=3; RefSR  { export RefSR; }
+PRIMARY_OP_NO_IMM: RefSRIndIdx    is bbb=4 & cc=3; RefSRIndIdx  { export RefSRIndIdx; }
 #
 # PRIMARY_OP is the whole subset.
 #
 PRIMARY_OP: PRIMARY_OP_NO_IMM    is PRIMARY_OP_NO_IMM  { export PRIMARY_OP_NO_IMM; }
-PRIMARY_OP: ADDR_IMM    is bbb=2 & cc=1; ADDR_IMM  { export ADDR_IMM; }
+PRIMARY_OP: RefImmMF    is bbb=2 & cc=1; RefImmMF  { export RefImmMF; }
 
 # Subsets of the addressing modes for some secondary instructions (most of the remaining
 # instructions that aren't branches/jumps and don't use implied addressing).
 #
-SEC_OP_COMMON: ADDR_ABS    is bbb=3; ADDR_ABS  { export ADDR_ABS; }
-SEC_OP_COMMON: ADDR_DP    is bbb=1; ADDR_DP  { export ADDR_DP; }
+SEC_OP_COMMON: RefAbs    is bbb=3; RefAbs  { export RefAbs; }
+SEC_OP_COMMON: RefDP    is bbb=1; RefDP  { export RefDP; }
 #
 SEC_OP_X: SEC_OP_COMMON    is SEC_OP_COMMON  { export SEC_OP_COMMON; }
-SEC_OP_X: ADDR_ABS_IDX_X    is bbb=7; ADDR_ABS_IDX_X  { export ADDR_ABS_IDX_X; }
-SEC_OP_X: ADDR_DP_IDX_X    is bbb=5; ADDR_DP_IDX_X  { export ADDR_DP_IDX_X; }
+SEC_OP_X: RefAbsIdxX    is bbb=7; RefAbsIdxX  { export RefAbsIdxX; }
+SEC_OP_X: RefDPIdxX    is bbb=5; RefDPIdxX  { export RefDPIdxX; }
 #
 SEC_OP_Y: SEC_OP_COMMON    is SEC_OP_COMMON  { export SEC_OP_COMMON; }
-SEC_OP_Y: ADDR_ABS_IDX_Y    is bbb=7; ADDR_ABS_IDX_Y  { export ADDR_ABS_IDX_Y; }
-SEC_OP_Y: ADDR_DP_IDX_Y    is bbb=5; ADDR_DP_IDX_Y  { export ADDR_DP_IDX_Y; }
+SEC_OP_Y: RefAbsIdxY    is bbb=7; RefAbsIdxY  { export RefAbsIdxY; }
+SEC_OP_Y: RefDPIdxY    is bbb=5; RefDPIdxY  { export RefDPIdxY; }
 
 SHIFT_OP: SEC_OP_X    is SEC_OP_X  { export SEC_OP_X; }
-SHIFT_OP: ADDR_ACC    is bbb=2; ADDR_ACC  { export ADDR_ACC; }
+# SHIFT_OP should also include the accumulator addressing mode, but this is handled separately by
+# each instruction.
 
 
 ##################################################################
@@ -142,7 +143,7 @@ SHIFT_OP: ADDR_ACC    is bbb=2; ADDR_ACC  { export ADDR_ACC; }
     local is_dec:1 = DF == 1;
     local not_dec:1 = DF == 0;
     local do_skip_dec_adjust:1;
-    local data:1 = PRIMARY_OP:1;
+    local data:1; deref_read8(data, PRIMARY_OP);
     local result:4;
 
     if (is_dec) goto <decimal>;
@@ -187,7 +188,7 @@ SHIFT_OP: ADDR_ACC    is bbb=2; ADDR_ACC  { export ADDR_ACC; }
     local is_dec:1 = DF == 1;
     local not_dec:1 = DF == 0;
     local do_skip_dec_adjust:1;
-    local data:2 = PRIMARY_OP:2;
+    local data:2; deref_read16(data, PRIMARY_OP);
     local result:4;
 
     if (is_dec) goto <decimal>;
@@ -243,7 +244,7 @@ SHIFT_OP: ADDR_ACC    is bbb=2; ADDR_ACC  { export ADDR_ACC; }
      op=0x3f | op=0x39 | op=0x35 | op=0x21 | op=0x31 | op=0x37 | op=0x23 |
      op=0x33)) ... & PRIMARY_OP
 {
-    local data:1 = PRIMARY_OP:1;
+    local data:1; deref_read8(data, PRIMARY_OP);
 
     A = A & data;
     flag8_NZ(A);
@@ -255,34 +256,58 @@ SHIFT_OP: ADDR_ACC    is bbb=2; ADDR_ACC  { export ADDR_ACC; }
      op=0x3f | op=0x39 | op=0x35 | op=0x21 | op=0x31 | op=0x37 | op=0x23 |
      op=0x33)) ... & PRIMARY_OP
 {
-    local data:2 = PRIMARY_OP:2;
+    local data:2; deref_read16(data, PRIMARY_OP);
 
     C = C & data;
     flag16_NZ(C);
 }
 
 # ASL 8 bit.
-:ASL SHIFT_OP    is (ctx_MF=1 &
-    (op=0x0a | op=0x0e | op=0x06 | op=0x1e | op=0x16)) ... & SHIFT_OP
-{
-    local data:1 = SHIFT_OP:1;
+macro do_asl8(_out, _data) {
+    local data:1 = _data;
     local result:1 = data << 1;
 
-    SHIFT_OP[0,8] = result;
     flag8_NZ(result);
     CF = data[7,1];
+
+    _out = result;
+}
+:ASL SHIFT_OP    is (ctx_MF=1 &
+    (op=0x0e | op=0x06 | op=0x1e | op=0x16)) ... & SHIFT_OP
+{
+    local data:1; deref_read8(data, SHIFT_OP);
+    local result:1; do_asl8(result, data);
+    deref_write8(result, SHIFT_OP);
+}
+:ASL "A"    is ctx_MF=1 & op=0x0a
+{
+    local data:1 = A;
+    local result:1; do_asl8(result, data);
+    A = result;
 }
 
 # ASL 16 bit.
-:ASL SHIFT_OP    is (ctx_MF=0 &
-    (op=0x0a | op=0x0e | op=0x06 | op=0x1e | op=0x16)) ... & SHIFT_OP
-{
-    local data:2 = SHIFT_OP;
+macro do_asl16(_out, _data) {
+    local data:2 = _data;
     local result:2 = data << 1;
 
-    SHIFT_OP = result;
     flag16_NZ(result);
     CF = data[15,1];
+
+    _out = result;
+}
+:ASL SHIFT_OP    is (ctx_MF=0 &
+    (op=0x0e | op=0x06 | op=0x1e | op=0x16)) ... & SHIFT_OP
+{
+    local data:2; deref_read16(data, SHIFT_OP);
+    local result:2; do_asl16(result, data);
+    deref_write16(result, SHIFT_OP);
+}
+:ASL "A"    is ctx_MF=0 & op=0x0a
+{
+    local data:2 = C;
+    local result:2; do_asl16(result, data);
+    C = result;
 }
 
 :BCC ADDR_PC_REL_BRA    is op=0x90; ADDR_PC_REL_BRA
@@ -301,13 +326,13 @@ SHIFT_OP: ADDR_ACC    is bbb=2; ADDR_ACC  { export ADDR_ACC; }
 }
 
 BIT_OP: SEC_OP_X    is (aaa=1 & cc=0) ... & SEC_OP_X  { export SEC_OP_X; }
-BIT_OP: ADDR_IMM    is op=0x89; ADDR_IMM  { export ADDR_IMM; }
+BIT_OP: RefImmMF    is op=0x89; RefImmMF  { export RefImmMF; }
 
 # BIT 8 bit.
 :BIT BIT_OP    is (ctx_MF=1 &
     (op=0x89 | op=0x2c | op=0x24 | op=0x3c | op=0x34) & op) ... & BIT_OP
 {
-    local data:1 = BIT_OP:1;
+    local data:1; deref_read8(data, BIT_OP);
     local is_immediate:1 = op:1 == 0x89;
 
     if (is_immediate) goto <skip_flags>;
@@ -323,7 +348,7 @@ BIT_OP: ADDR_IMM    is op=0x89; ADDR_IMM  { export ADDR_IMM; }
 :BIT BIT_OP    is (ctx_MF=0 &
     (op=0x89 | op=0x2c | op=0x24 | op=0x3c | op=0x34) & op) ... & BIT_OP
 {
-    local data:2 = BIT_OP:2;
+    local data:2; deref_read16(data, BIT_OP);
     local is_immediate:1 = op:1 == 0x89;
 
     if (is_immediate) goto <skip_flags>;
@@ -424,7 +449,7 @@ BIT_OP: ADDR_IMM    is op=0x89; ADDR_IMM  { export ADDR_IMM; }
      op=0xdf | op=0xd9 | op=0xd5 | op=0xc1 | op=0xd1 | op=0xd7 | op=0xc3 |
      op=0xd3)) ... & PRIMARY_OP
 {
-    local data:1 = PRIMARY_OP:1;
+    local data:1; deref_read8(data, PRIMARY_OP);
     local result:4;
 
     result = sext(A) - sext(data);
@@ -438,7 +463,7 @@ BIT_OP: ADDR_IMM    is op=0x89; ADDR_IMM  { export ADDR_IMM; }
      op=0xdf | op=0xd9 | op=0xd5 | op=0xc1 | op=0xd1 | op=0xd7 | op=0xc3 |
      op=0xd3)) ... & PRIMARY_OP
 {
-    local data:2 = PRIMARY_OP:2;
+    local data:2; deref_read16(data, PRIMARY_OP);
     local result:4;
 
     result = sext(C) - sext(data);
@@ -475,55 +500,84 @@ BIT_OP: ADDR_IMM    is op=0x89; ADDR_IMM  { export ADDR_IMM; }
 }
 
 CPXY_OP: SEC_OP_COMMON    is (cc=0) ... & SEC_OP_COMMON  { export SEC_OP_COMMON; }
-CPXY_OP: ADDR_IMM    is bbb=0; ADDR_IMM  { export ADDR_IMM; }
+CPXY_OP: RefImmMF    is bbb=0; RefImmMF  { export RefImmMF; }
 
 # CPX 8 bit.
 :CPX CPXY_OP    is (ctx_MF=1 & (op=0xe0 | op=0xec | op=0xe4)) ... & CPXY_OP {
-    local result:4 = sext(XLow) - sext(CPXY_OP:1);
+    local data:1; deref_read8(data, CPXY_OP);
+    local result:4 = sext(XLow) - sext(data);
     flag8_NZ(result:1);
     CF = result s>= 0;
 }
 
 # CPX 16 bit.
 :CPX CPXY_OP    is (ctx_MF=0 & (op=0xe0 | op=0xec | op=0xe4)) ... & CPXY_OP {
-    local result:4 = sext(X) - sext(CPXY_OP:2);
+    local data:2; deref_read16(data, CPXY_OP);
+    local result:4 = sext(X) - sext(data);
     flag16_NZ(result:2);
     CF = result s>= 0;
 }
 
 # CPY 8 bit.
 :CPY CPXY_OP    is (ctx_MF=0 & (op=0xc0 | op=0xcc | op=0xc4)) ... & CPXY_OP {
-    local result:4 = sext(YLow) - sext(CPXY_OP:1);
+    local data:1; deref_read8(data, CPXY_OP);
+    local result:4 = sext(YLow) - sext(data);
     flag8_NZ(result:1);
     CF = result s>= 0;
 }
 
 # CPY 16 bit.
 :CPY CPXY_OP    is (ctx_MF=1 & (op=0xc0 | op=0xcc | op=0xc4)) ... & CPXY_OP {
-    local result:4 = sext(Y) - sext(CPXY_OP:2);
+    local data:2; deref_read16(data, CPXY_OP);
+    local result:4 = sext(Y) - sext(data);
     flag16_NZ(result:2);
     CF = result s>= 0;
 }
 
 DEC_INC_OP: SEC_OP_X    is (cc=2) ... & SEC_OP_X  { export SEC_OP_X; }
-DEC_INC_OP: ADDR_ACC    is (bbb=6) ... & ADDR_ACC  { export ADDR_ACC; }
+# DEC_INC_OP should also include the accumulator addressing mode, but this is handled separately
+# by each instruction.
 
 # DEC 8 bit.
-:DEC DEC_INC_OP    is (ctx_MF=1 &
-    (op=0x3a | op=0xce | op=0xc6 | op=0xde | op=0xd6)) ... & DEC_INC_OP
-{
-    local result:1 = DEC_INC_OP:1 - 1;
+macro do_dec8(_out, _data) {
+    local data:1 = _data;
+    local result:1 = data - 1;
     flag8_NZ(result);
-    DEC_INC_OP[0,8] = result;
+    _out = result;
+}
+:DEC DEC_INC_OP    is (ctx_MF=1 &
+    (op=0xce | op=0xc6 | op=0xde | op=0xd6)) ... & DEC_INC_OP
+{
+    local data:1; deref_read8(data, DEC_INC_OP);
+    local result:1; do_dec8(result, data);
+    deref_write8(result, DEC_INC_OP);
+}
+:DEC "A"    is ctx_MF=1 & op=0x3a
+{
+    local data:1 = A;
+    local result:1; do_dec8(result, data);
+    A = result;
 }
 
 # DEC 16 bit.
-:DEC DEC_INC_OP    is (ctx_MF=0 &
-    (op=0x3a | op=0xce | op=0xc6 | op=0xde | op=0xd6)) ... & DEC_INC_OP
-{
-    local result:2 = DEC_INC_OP:2 - 1;
+macro do_dec16(_out, _data) {
+    local data:2 = _data;
+    local result:2 = data - 1;
     flag16_NZ(result);
-    DEC_INC_OP = result;
+    _out = result;
+}
+:DEC DEC_INC_OP    is (ctx_MF=0 &
+    (op=0xce | op=0xc6 | op=0xde | op=0xd6)) ... & DEC_INC_OP
+{
+    local data:2; deref_read16(data, DEC_INC_OP);
+    local result:2; do_dec16(result, data);
+    deref_write16(result, DEC_INC_OP);
+}
+:DEC "A"    is ctx_MF=0 & op=0x3a
+{
+    local data:2 = C;
+    local result:2; do_dec16(result, data);
+    C = result;
 }
 
 # DEX 8 bit.
@@ -564,7 +618,7 @@ DEC_INC_OP: ADDR_ACC    is (bbb=6) ... & ADDR_ACC  { export ADDR_ACC; }
      op=0x5f | op=0x59 | op=0x55 | op=0x41 | op=0x51 | op=0x57 | op=0x43 |
      op=0x53)) ... & PRIMARY_OP
 {
-    local data:1 = PRIMARY_OP:1;
+    local data:1; deref_read8(data, PRIMARY_OP);
 
     A = A ^ data;
     flag8_NZ(A);
@@ -576,28 +630,52 @@ DEC_INC_OP: ADDR_ACC    is (bbb=6) ... & ADDR_ACC  { export ADDR_ACC; }
      op=0x5f | op=0x59 | op=0x55 | op=0x41 | op=0x51 | op=0x57 | op=0x43 |
      op=0x53)) ... & PRIMARY_OP
 {
-    local data:2 = PRIMARY_OP:2;
+    local data:2; deref_read16(data, PRIMARY_OP);
 
     C = C ^ data;
     flag16_NZ(C);
 }
 
 # INC 8 bit.
-:INC DEC_INC_OP    is (ctx_MF=1 &
-    (op=0x1a | op=0xee | op=0xe6 | op=0xfe | op=0xf6)) ... & DEC_INC_OP
-{
-    local result:1 = DEC_INC_OP:1 + 1;
+macro do_inc8(_out, _data) {
+    local data:1 = _data;
+    local result:1 = data + 1;
     flag8_NZ(result);
-    DEC_INC_OP[0,8] = result;
+    _out = result;
+}
+:INC DEC_INC_OP    is (ctx_MF=1 &
+    (op=0xee | op=0xe6 | op=0xfe | op=0xf6)) ... & DEC_INC_OP
+{
+    local data:1; deref_read8(data, DEC_INC_OP);
+    local result:1; do_inc8(result, data);
+    deref_write8(result, DEC_INC_OP);
+}
+:INC "A"    is ctx_MF=1 & op=0x1a
+{
+    local data:1 = A;
+    local result:1; do_inc8(result, data);
+    A = result;
 }
 
 # INC 16 bit.
-:INC DEC_INC_OP    is (ctx_MF=0 &
-    (op=0x1a | op=0xee | op=0xe6 | op=0xfe | op=0xf6)) ... & DEC_INC_OP
-{
-    local result:2 = DEC_INC_OP:2 + 1;
+macro do_inc16(_out, _data) {
+    local data:2 = _data;
+    local result:2 = data + 1;
     flag16_NZ(result);
-    DEC_INC_OP = result;
+    _out = result;
+}
+:INC DEC_INC_OP    is (ctx_MF=0 &
+    (op=0xee | op=0xe6 | op=0xfe | op=0xf6)) ... & DEC_INC_OP
+{
+    local data:2; deref_read16(data, DEC_INC_OP);
+    local result:2; do_inc16(result, data);
+    deref_write16(result, DEC_INC_OP);
+}
+:INC "A"    is ctx_MF=0 & op=0x1a
+{
+    local data:2 = C;
+    local result:2; do_inc16(result, data);
+    C = result;
 }
 
 # INX 8 bit.
@@ -640,7 +718,7 @@ DEC_INC_OP: ADDR_ACC    is (bbb=6) ... & ADDR_ACC  { export ADDR_ACC; }
      op=0xbf | op=0xb9 | op=0xb5 | op=0xa1 | op=0xb1 | op=0xb7 | op=0xa3 |
      op=0xb3)) ... & PRIMARY_OP
 {
-    local data:1 = PRIMARY_OP:1;
+    local data:1; deref_read8(data, PRIMARY_OP);
 
     A = data;
     flag8_NZ(A);
@@ -652,20 +730,20 @@ DEC_INC_OP: ADDR_ACC    is (bbb=6) ... & ADDR_ACC  { export ADDR_ACC; }
      op=0xbf | op=0xb9 | op=0xb5 | op=0xa1 | op=0xb1 | op=0xb7 | op=0xa3 |
      op=0xb3)) ... & PRIMARY_OP
 {
-    local data:2 = PRIMARY_OP:2;
+    local data:2; deref_read16(data, PRIMARY_OP);
 
     C = data;
     flag16_NZ(C);
 }
 
 LDX_OP: SEC_OP_Y    is (aaa=5) ... & SEC_OP_Y  { export SEC_OP_Y; }
-LDX_OP: ADDR_IMM    is (bbb=0) ... & ADDR_IMM  { export ADDR_IMM; }
+LDX_OP: RefImmMF    is (bbb=0) ... & RefImmMF  { export RefImmMF; }
 
 # LDX 8 bit.
 :LDX LDX_OP    is (ctx_MF=1 &
     (op=0xa2 | op=0xae | op=0xa6 | op=0xbe | op=0xb6)) ... & LDX_OP
 {
-    local data:1 = LDX_OP:1;
+    local data:1; deref_read8(data, LDX_OP);
     flag8_NZ(data);
     XLow = data;
 }
@@ -674,19 +752,19 @@ LDX_OP: ADDR_IMM    is (bbb=0) ... & ADDR_IMM  { export ADDR_IMM; }
 :LDX LDX_OP    is (ctx_MF=0 &
     (op=0xa2 | op=0xae | op=0xa6 | op=0xbe | op=0xb6)) ... & LDX_OP
 {
-    local data:2 = LDX_OP;
+    local data:2; deref_read16(data, LDX_OP);
     flag16_NZ(data);
     X = data;
 }
 
 LDY_OP: SEC_OP_X    is (aaa=5) ... & SEC_OP_X  { export SEC_OP_X; }
-LDY_OP: ADDR_IMM    is (bbb=0) ... & ADDR_IMM  { export ADDR_IMM; }
+LDY_OP: RefImmMF    is (bbb=0) ... & RefImmMF  { export RefImmMF; }
 
 # LDY 8 bit.
 :LDY LDY_OP    is (ctx_MF=1 &
     (op=0xa0 | op=0xac | op=0xa4 | op=0xbc | op=0xb4)) ... & LDY_OP
 {
-    local data:1 = LDY_OP:1;
+    local data:1; deref_read8(data, LDY_OP);
     flag8_NZ(data);
     YLow = data;
 }
@@ -695,35 +773,59 @@ LDY_OP: ADDR_IMM    is (bbb=0) ... & ADDR_IMM  { export ADDR_IMM; }
 :LDY LDY_OP    is (ctx_MF=0 &
     (op=0xa0 | op=0xac | op=0xa4 | op=0xbc | op=0xb4)) ... & LDY_OP
 {
-    local data:2 = LDY_OP;
+    local data:2; deref_read16(data, LDY_OP);
     flag16_NZ(data);
     Y = data;
 }
 
 # LSR 8 bit.
-:LSR SHIFT_OP    is (ctx_MF=1 &
-    (op=0x4a | op=0x4e | op=0x46 | op=0x5e | op=0x56)) ... & SHIFT_OP
-{
-    local data:1 = SHIFT_OP:1;
+macro do_lsr8(_out, _data) {
+    local data:1 = _data;
     local result:1 = data >> 1;
 
-    SHIFT_OP[0,8] = result;
     flag8_Z(result);
     NF = 0;
     CF = data[0,1];
+
+    _out = result;
+}
+:LSR SHIFT_OP    is (ctx_MF=1 &
+    (op=0x4e | op=0x46 | op=0x5e | op=0x56)) ... & SHIFT_OP
+{
+    local data:1; deref_read8(data, SHIFT_OP);
+    local result:1; do_lsr8(result, data);
+    deref_write8(result, SHIFT_OP);
+}
+:LSR "A"    is ctx_MF=1 & op=0x4a
+{
+    local data:1 = A;
+    local result:1; do_lsr8(result, data);
+    A = result;
 }
 
 # LSR 16 bit.
-:LSR SHIFT_OP    is (ctx_MF=0 &
-    (op=0x4a | op=0x4e | op=0x46 | op=0x5e | op=0x56)) ... & SHIFT_OP
-{
-    local data:2 = SHIFT_OP;
+macro do_lsr16(_out, _data) {
+    local data:2 = _data;
     local result:2 = data >> 1;
 
-    SHIFT_OP = result;
     flag16_Z(result);
     NF = 0;
     CF = data[0,1];
+
+    _out = result;
+}
+:LSR SHIFT_OP    is (ctx_MF=0 &
+    (op=0x4e | op=0x46 | op=0x5e | op=0x56)) ... & SHIFT_OP
+{
+    local data:2; deref_read16(data, SHIFT_OP);
+    local result:2; do_lsr16(result, data);
+    deref_write16(result, SHIFT_OP);
+}
+:LSR "A"    is ctx_MF=0 & op=0x4a
+{
+    local data:2 = C;
+    local result:2; do_lsr16(result, data);
+    C = result;
 }
 
 # MVN 8 bit.
@@ -818,7 +920,7 @@ LDY_OP: ADDR_IMM    is (bbb=0) ... & ADDR_IMM  { export ADDR_IMM; }
      op=0x1f | op=0x19 | op=0x15 | op=0x01 | op=0x11 | op=0x17 | op=0x03 |
      op=0x13)) ... & PRIMARY_OP
 {
-    local data:1 = PRIMARY_OP:1;
+    local data:1; deref_read8(data, PRIMARY_OP);
 
     A = A | data;
     flag8_NZ(A);
@@ -830,34 +932,25 @@ LDY_OP: ADDR_IMM    is (bbb=0) ... & ADDR_IMM  { export ADDR_IMM; }
      op=0x1f | op=0x19 | op=0x15 | op=0x01 | op=0x11 | op=0x17 | op=0x03 |
      op=0x13)) ... & PRIMARY_OP
 {
-    local data:2 = PRIMARY_OP:2;
+    local data:2; deref_read16(data, PRIMARY_OP);
 
     C = C | data;
     flag16_NZ(C);
 }
 
-:PEA ADDR_STACK_ABS    is (op=0xf4; ADDR_STACK_ABS)
+:PEA MemStackAbs    is (op=0xf4; MemStackAbs)
 {
-    push16(ADDR_STACK_ABS);
+    push16(MemStackAbs);
 }
 
-:PEI ADDR_STACK_DP_IND    is (op=0xd4; ADDR_STACK_DP_IND)
+:PEI MemStackInd    is (op=0xd4; MemStackInd)
 {
-    push16(ADDR_STACK_DP_IND);
+    push16(MemStackInd);
 }
 
-:PER rel16    is (op=0x62; rel16)
+:PER MemStackPCRel    is (op=0x62; MemStackPCRel)
 {
-    # Make sure that the PC of the next instruction is actually correct
-    # (account for wrapping to stay within the PBR). I don't think Ghidra
-    # will do this naturally due to the way I have defined the PC.
-    local this_pc_full:3 = inst_start;
-    local this_pbr:1 = this_pc_full(2);
-    local pc_next:3;
-    make_addr24(pc_next, this_pbr, inst_next & 0xFFFF);
-
-    local data:2 = pc_next:2 + rel16;
-    push16(data);
+    push16(MemStackPCRel);
 }
 
 # PHA 8 bit.
@@ -1031,51 +1124,95 @@ macro do_rep(op_nf, op_vf, op_df, op_if, op_zf, op_cf) {
 }
 
 # ROL 8 bit.
-:ROL SHIFT_OP    is (ctx_MF=1 &
-    (op=0x2a | op=0x2e | op=0x26 | op=0x3e | op=0x36)) ... & SHIFT_OP
-{
-    local data:1 = SHIFT_OP:1;
+macro do_rol8(_out, _data) {
+    local data:1 = _data;
     local result:1 = data << 1;
     result = result | CF;
     CF = data[7,1];
     flag8_NZ(result);
-    SHIFT_OP[0,8] = result;
+    _out = result;
+}
+:ROL SHIFT_OP    is (ctx_MF=1 &
+    (op=0x2e | op=0x26 | op=0x3e | op=0x36)) ... & SHIFT_OP
+{
+    local data:1; deref_read8(data, SHIFT_OP);
+    local result:1; do_rol8(result, data);
+    deref_write8(result, SHIFT_OP);
+}
+:ROL "A"    is ctx_MF=1 & op=0x2a
+{
+    local data:1 = A;
+    local result:1; do_rol8(result, data);
+    A = result;
 }
 
 # ROL 16 bit.
-:ROL SHIFT_OP    is (ctx_MF=0 &
-    (op=0x2a | op=0x2e | op=0x26 | op=0x3e | op=0x36)) ... & SHIFT_OP
-{
-    local data:2 = SHIFT_OP;
+macro do_rol16(_out, _data) {
+    local data:2 = _data;
     local result:2 = data << 1;
     result = result | zext(CF);
     CF = data[15,1];
     flag16_NZ(result);
-    SHIFT_OP = result;
+    _out = result;
+}
+:ROL SHIFT_OP    is (ctx_MF=0 &
+    (op=0x2e | op=0x26 | op=0x3e | op=0x36)) ... & SHIFT_OP
+{
+    local data:2; deref_read16(data, SHIFT_OP);
+    local result:2; do_rol16(result, data);
+    deref_write16(result, SHIFT_OP);
+}
+:ROL "A"    is ctx_MF=0 & op=0x2a
+{
+    local data:2 = C;
+    local result:2; do_rol16(result, data);
+    C = result;
 }
 
 # ROR 8 bit.
-:ROR SHIFT_OP    is (ctx_MF=1 &
-    (op=0x6a | op=0x6e | op=0x66 | op=0x7e | op=0x76)) ... & SHIFT_OP
-{
-    local data:1 = SHIFT_OP:1;
+macro do_ror8(_out, _data) {
+    local data:1 = _data;
     local result:1 = data >> 1;
     result[7,1] = CF;
     CF = data[0,1];
     flag8_NZ(result);
-    SHIFT_OP[0,8] = result;
+    _out = result;
+}
+:ROR SHIFT_OP    is (ctx_MF=1 &
+    (op=0x6e | op=0x66 | op=0x7e | op=0x76)) ... & SHIFT_OP
+{
+    local data:1; deref_read8(data, SHIFT_OP);
+    local result:1; do_ror8(result, data);
+    deref_write8(result, SHIFT_OP);
+}
+:ROR "A"    is ctx_MF=1 & op=0x6a
+{
+    local data:1 = A;
+    local result:1; do_ror8(result, data);
+    A = result;
 }
 
 # ROR 16 bit.
-:ROR SHIFT_OP    is (ctx_MF=0 &
-    (op=0x6a | op=0x6e | op=0x66 | op=0x7e | op=0x76)) ... & SHIFT_OP
-{
-    local data:2 = SHIFT_OP;
+macro do_ror16(_out, _data) {
+    local data:2 = _data;
     local result:2 = data >> 1;
     result[15,1] = CF;
     CF = data[0,1];
     flag16_NZ(result);
-    SHIFT_OP = result;
+    _out = result;
+}
+:ROR SHIFT_OP    is (ctx_MF=0 &
+    (op=0x6e | op=0x66 | op=0x7e | op=0x76)) ... & SHIFT_OP
+{
+    local data:2; deref_read16(data, SHIFT_OP);
+    local result:2; do_ror16(result, data);
+    deref_write16(result, SHIFT_OP);
+}
+:ROR "A"    is ctx_MF=0 & op=0x6a
+{
+    local data:2 = C;
+    local result:2; do_ror16(result, data);
+    C = result;
 }
 
 # RTI native. Does not support pulling the context flags MF, XF.
@@ -1125,7 +1262,8 @@ macro do_rep(op_nf, op_vf, op_df, op_if, op_zf, op_cf) {
     local is_dec:1 = DF == 1;
     local not_dec:1 = DF == 0;
     local do_skip_dec_adjust:1;
-    local data:1 = ~(PRIMARY_OP:1);
+    local data:1; deref_read8(data, PRIMARY_OP);
+    data = ~data;
     local result:4;
 
     if (is_dec) goto <decimal>;
@@ -1167,7 +1305,8 @@ macro do_rep(op_nf, op_vf, op_df, op_if, op_zf, op_cf) {
     local is_dec:1 = DF == 1;
     local not_dec:1 = DF == 0;
     local do_skip_dec_adjust:1;
-    local data:2 = ~(PRIMARY_OP:2);
+    local data:2; deref_read16(data, PRIMARY_OP);
+    data = ~data;
     local result:4;
 
     if (is_dec) goto <decimal>;
@@ -1276,7 +1415,7 @@ macro do_sep(op_nf, op_vf, op_df, op_if, op_zf, op_cf) {
      op=0x9f | op=0x99 | op=0x95 | op=0x81 | op=0x91 | op=0x97 |
      op=0x83 | op=0x93)) ... & PRIMARY_OP_NO_IMM
 {
-    PRIMARY_OP_NO_IMM[0,8] = A;
+    deref_write8(A, PRIMARY_OP_NO_IMM);
 }
 
 # STA 16 bit.
@@ -1285,7 +1424,7 @@ macro do_sep(op_nf, op_vf, op_df, op_if, op_zf, op_cf) {
      op=0x9f | op=0x99 | op=0x95 | op=0x81 | op=0x91 | op=0x97 |
      op=0x83 | op=0x93)) ... & PRIMARY_OP_NO_IMM
 {
-    PRIMARY_OP_NO_IMM = C;
+    deref_write16(C, PRIMARY_OP_NO_IMM);
 }
 
 define pcodeop stop;
@@ -1297,51 +1436,51 @@ define pcodeop stop;
 }
 
 STX_OP: SEC_OP_COMMON    is SEC_OP_COMMON  { export SEC_OP_COMMON; }
-STX_OP: ADDR_DP_IDX_Y    is bbb=5; ADDR_DP_IDX_Y  { export ADDR_DP_IDX_Y; }
+STX_OP: RefDPIdxY    is bbb=5; RefDPIdxY  { export RefDPIdxY; }
 
 # STX 8 bit.
 :STX STX_OP    is (ctx_XF=1 & (op=0x8e | op=0x86 | op=0x96)) ... & STX_OP
 {
-    STX_OP[0,8] = XLow;
+    deref_write8(XLow, STX_OP);
 }
 
 # STX 16 bit.
 :STX STX_OP    is (ctx_XF=0 & (op=0x8e | op=0x86 | op=0x96)) ... & STX_OP
 {
-    STX_OP = X;
+    deref_write16(X, STX_OP);
 }
 
 STY_OP: SEC_OP_COMMON    is SEC_OP_COMMON  { export SEC_OP_COMMON; }
-STY_OP: ADDR_DP_IDX_X    is bbb=5; ADDR_DP_IDX_X  { export ADDR_DP_IDX_X; }
+STY_OP: RefDPIdxX    is bbb=5; RefDPIdxX  { export RefDPIdxX; }
 
 # STY 8 bit.
 :STY STY_OP    is (ctx_XF=1 & (op=0x8c | op=0x84 | op=0x94)) ... & STY_OP
 {
-    STY_OP[0,8] = YLow;
+    deref_write8(YLow, STY_OP);
 }
 
 # STY 16 bit.
 :STY STY_OP    is (ctx_XF=0 & (op=0x8c | op=0x84 | op=0x94)) ... & STY_OP
 {
-    STY_OP = Y;
+    deref_write16(Y, STY_OP);
 }
 
 # STZ has irregular address mode encoding compared to the other secondary instructions.
-STZ_OP: ADDR_ABS    is op=0x9c; ADDR_ABS  { export ADDR_ABS; }
-STZ_OP: ADDR_DP    is op=0x64; ADDR_DP  { export ADDR_DP; }
-STZ_OP: ADDR_ABS_IDX_X    is op=0x9e; ADDR_ABS_IDX_X  { export ADDR_ABS_IDX_X; }
-STZ_OP: ADDR_DP_IDX_X    is op=0x74; ADDR_DP_IDX_X  { export ADDR_DP_IDX_X; }
+STZ_OP: RefAbs    is op=0x9c; RefAbs  { export RefAbs; }
+STZ_OP: RefDP    is op=0x64; RefDP  { export RefDP; }
+STZ_OP: RefAbsIdxX    is op=0x9e; RefAbsIdxX  { export RefAbsIdxX; }
+STZ_OP: RefDPIdxX    is op=0x74; RefDPIdxX  { export RefDPIdxX; }
 
 # STZ 8 bit.
 :STZ STZ_OP    is (ctx_MF=1 & (op=0x9c | op=0x64 | op=0x9e | op=0x74)) ... & STZ_OP
 {
-    STZ_OP[0,8] = 0:1;
+    deref_write8(0:1, STZ_OP);
 }
 
 # STZ 16 bit.
 :STZ STZ_OP    is (ctx_MF=0 & (op=0x9c | op=0x64 | op=0x9e | op=0x74)) ... & STZ_OP
 {
-    STZ_OP = 0:2;
+    deref_write16(0:2, STZ_OP);
 }
 
 # TAX  8 -> 8  or  16 -> 8
@@ -1393,36 +1532,40 @@ STZ_OP: ADDR_DP_IDX_X    is op=0x74; ADDR_DP_IDX_X  { export ADDR_DP_IDX_X; }
     flag16_NZ(DP);
 }
 
-TEST_OP: ADDR_ABS    is dd=3; ADDR_ABS  { export ADDR_ABS; }
-TEST_OP: ADDR_DP    is dd=1; ADDR_DP  { export ADDR_DP; }
+TEST_OP: RefAbs    is dd=3; RefAbs  { export RefAbs; }
+TEST_OP: RefDP    is dd=1; RefDP  { export RefDP; }
 
 # TRB 8 bit.
 :TRB TEST_OP    is ctx_MF=1 & (op=0x1c | op=0x14) ... & TEST_OP
 {
-    local data:1 = TEST_OP:1;
-    TEST_OP[0,8] = data & ~A;
+    local data:1; deref_read8(data, TEST_OP);
+    local result:1 = data & ~A;
+    deref_write8(result, TEST_OP);
     flag8_Z(data & A);
 }
 # TRB 16 bit.
 :TRB TEST_OP    is ctx_MF=0 & (op=0x1c | op=0x14) ... & TEST_OP
 {
-    local data:2 = TEST_OP;
-    TEST_OP = data & ~C;
+    local data:2; deref_read16(data, TEST_OP);
+    local result:2 = data & ~C;
+    deref_write16(result, TEST_OP);
     flag16_Z(data & C);
 }
 
 # TSB 8 bit.
 :TSB TEST_OP    is ctx_MF=1 & (op=0x0c | op=0x04) ... & TEST_OP
 {
-    local data:1 = TEST_OP:1;
-    TEST_OP[0,8] = data | A;
+    local data:1; deref_read8(data, TEST_OP);
+    local result:1 = data | A;
+    deref_write8(result, TEST_OP);
     flag8_Z(data & A);
 }
 # TSB 16 bit.
 :TSB TEST_OP    is ctx_MF=0 & (op=0x0c | op=0x04) ... & TEST_OP
 {
-    local data:2 = TEST_OP;
-    TEST_OP = data | C;
+    local data:2; deref_read16(data, TEST_OP);
+    local result:2 = data | C;
+    deref_write16(result, TEST_OP);
     flag16_Z(data & C);
 }
 
