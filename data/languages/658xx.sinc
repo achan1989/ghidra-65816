@@ -838,8 +838,8 @@ macro do_lsr16(_out, _data) {
     local dest_addr:3;
 
     <move_loop>
-    make_addr24(src_addr, src_bank, zext(XLow));
-    make_addr24(dest_addr, dest_bank, zext(YLow));
+    pack_bank_addr16(src_addr, src_bank, zext(XLow));
+    pack_bank_addr16(dest_addr, dest_bank, zext(YLow));
     *:1 dest_addr = *:1 src_addr;
 
     XLow = XLow + 1;
@@ -859,8 +859,8 @@ macro do_lsr16(_out, _data) {
     local dest_addr:3;
 
     <move_loop>
-    make_addr24(src_addr, src_bank, X);
-    make_addr24(dest_addr, dest_bank, Y);
+    pack_bank_addr16(src_addr, src_bank, X);
+    pack_bank_addr16(dest_addr, dest_bank, Y);
     *:1 dest_addr = *:1 src_addr;
 
     X = X + 1;
@@ -880,8 +880,8 @@ macro do_lsr16(_out, _data) {
     local dest_addr:3;
 
     <move_loop>
-    make_addr24(src_addr, src_bank, zext(XLow));
-    make_addr24(dest_addr, dest_bank, zext(YLow));
+    pack_bank_addr16(src_addr, src_bank, zext(XLow));
+    pack_bank_addr16(dest_addr, dest_bank, zext(YLow));
     *:1 dest_addr = *:1 src_addr;
 
     XLow = XLow - 1;
@@ -901,8 +901,8 @@ macro do_lsr16(_out, _data) {
     local dest_addr:3;
 
     <move_loop>
-    make_addr24(src_addr, src_bank, X);
-    make_addr24(dest_addr, dest_bank, Y);
+    pack_bank_addr16(src_addr, src_bank, X);
+    pack_bank_addr16(dest_addr, dest_bank, Y);
     *:1 dest_addr = *:1 src_addr;
 
     X = X - 1;
