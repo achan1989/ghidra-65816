@@ -310,19 +310,19 @@ macro do_asl16(_out, _data) {
     C = result;
 }
 
-:BCC ADDR_PC_REL_BRA    is op=0x90; ADDR_PC_REL_BRA
+:BCC MemPCRelBra    is op=0x90; MemPCRelBra
 {
-    if (CF==0) goto ADDR_PC_REL_BRA;
+    if (CF==0) goto MemPCRelBra;
 }
 
-:BCS ADDR_PC_REL_BRA    is op=0xb0; ADDR_PC_REL_BRA
+:BCS MemPCRelBra    is op=0xb0; MemPCRelBra
 {
-    if (CF==1) goto ADDR_PC_REL_BRA;
+    if (CF==1) goto MemPCRelBra;
 }
 
-:BEQ ADDR_PC_REL_BRA    is op=0xf0; ADDR_PC_REL_BRA
+:BEQ MemPCRelBra    is op=0xf0; MemPCRelBra
 {
-    if (ZF==1) goto ADDR_PC_REL_BRA;
+    if (ZF==1) goto MemPCRelBra;
 }
 
 BIT_OP: SEC_OP_X    is (aaa=1 & cc=0) ... & SEC_OP_X  { export SEC_OP_X; }
@@ -360,24 +360,24 @@ BIT_OP: RefImmMF    is op=0x89; RefImmMF  { export RefImmMF; }
     flag16_Z(result);
 }
 
-:BMI ADDR_PC_REL_BRA    is op=0x30; ADDR_PC_REL_BRA
+:BMI MemPCRelBra    is op=0x30; MemPCRelBra
 {
-    if (NF==1) goto ADDR_PC_REL_BRA;
+    if (NF==1) goto MemPCRelBra;
 }
 
-:BNE ADDR_PC_REL_BRA    is op=0xd0; ADDR_PC_REL_BRA
+:BNE MemPCRelBra    is op=0xd0; MemPCRelBra
 {
-    if (ZF==0) goto ADDR_PC_REL_BRA;
+    if (ZF==0) goto MemPCRelBra;
 }
 
-:BPL ADDR_PC_REL_BRA    is op=0x10; ADDR_PC_REL_BRA
+:BPL MemPCRelBra    is op=0x10; MemPCRelBra
 {
-    if (NF==0) goto ADDR_PC_REL_BRA;
+    if (NF==0) goto MemPCRelBra;
 }
 
-:BRA ADDR_PC_REL_BRA    is op=0x80; ADDR_PC_REL_BRA
+:BRA MemPCRelBra    is op=0x80; MemPCRelBra
 {
-    goto ADDR_PC_REL_BRA;
+    goto MemPCRelBra;
 }
 
 :BRK    is op=0x00
@@ -408,19 +408,19 @@ BIT_OP: RefImmMF    is op=0x89; RefImmMF  { export RefImmMF; }
     goto [target];
 }
 
-:BRL ADDR_PC_REL_LONG_BRA    is op=0x82; ADDR_PC_REL_LONG_BRA
+:BRL MemPCRelLongBra    is op=0x82; MemPCRelLongBra
 {
-    goto ADDR_PC_REL_LONG_BRA;
+    goto MemPCRelLongBra;
 }
 
-:BVC ADDR_PC_REL_BRA    is op=0x50; ADDR_PC_REL_BRA
+:BVC MemPCRelBra    is op=0x50; MemPCRelBra
 {
-    if (VF==0) goto ADDR_PC_REL_BRA;
+    if (VF==0) goto MemPCRelBra;
 }
 
-:BVS ADDR_PC_REL_BRA    is op=0x70; ADDR_PC_REL_BRA
+:BVS MemPCRelBra    is op=0x70; MemPCRelBra
 {
-    if (VF==1) goto ADDR_PC_REL_BRA;
+    if (VF==1) goto MemPCRelBra;
 }
 
 :CLC    is op=0x18

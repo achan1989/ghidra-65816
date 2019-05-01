@@ -58,7 +58,7 @@ MemAbsLongJmp: !>$imm24    is imm24  {
 MemPCRelBra: $reloc    is rel8
     [ reloc = (inst_start $and 0xff0000) $or ((inst_next + rel8) $and 0x00ffff); ]
 {
-    export reloc;
+    export *:3 reloc;
 }
 
 # PC relative long.
@@ -66,5 +66,5 @@ MemPCRelBra: $reloc    is rel8
 MemPCRelLongBra: $reloc    is rel16
     [ reloc = (inst_start $and 0xff0000) $or ((inst_next + rel16) $and 0x00ffff); ]
 {
-    export reloc;
+    export *:3 reloc;
 }
