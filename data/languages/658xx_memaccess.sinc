@@ -351,9 +351,10 @@ macro read_direct_noemu(_out, _offset32) {
 # @define DEREF_EA_EXPORT16 "local data:2; pack_lo_hi(data, (*:1 ea_lo), (*:1 ea_hi)); export data"
 
 
-# Read the contents of the X register. Size depends on XF.
+# Read the contents of the X register.
+# In 8 bit mode, XLow is always zero-extended to 16 bits.
 IdxX:    is ctx_XF=1  {
-    local data:1 = XLow;
+    local data:2 = zext(XLow);
     export data;
 }
 IdxX:    is ctx_XF=0  {
@@ -361,9 +362,10 @@ IdxX:    is ctx_XF=0  {
     export data;
 }
 
-# Read the contents of the Y register. Size depends on XF.
+# Read the contents of the Y register.
+# In 8 bit mode, YLow is always zero-extended to 16 bits.
 IdxY:    is ctx_XF=1  {
-    local data:1 = YLow;
+    local data:2 = zext(YLow);
     export data;
 }
 IdxY:    is ctx_XF=0  {
