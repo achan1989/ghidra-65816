@@ -71,6 +71,26 @@ macro push16(_val16) {
     SP = SP - 1;
 }
 
+macro push24(_val24) {
+    local value:3 = _val24;
+    local sp:3;
+
+    # High byte.
+    sp = zext(SP);
+    *:1 sp = value(2);
+    SP = SP - 1;
+
+    # Mid byte.
+    sp = zext(SP);
+    *:1 sp = value(1);
+    SP = SP - 1;
+
+    # Low byte.
+    sp = zext(SP);
+    *:1 sp = value:1;
+    SP = SP - 1;
+}
+
 macro pull8(var8) {
     SP = SP + 1;
     local sp:3 = zext(SP);

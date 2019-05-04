@@ -710,7 +710,56 @@ macro do_inc16(_out, _data) {
     Y = result;
 }
 
-# TODO: JMP  p 360
+JMP_OP: MemAbsJmp    is op=0x4c; MemAbsJmp  { export MemAbsJmp; }
+JMP_OP: MemAbsIndJmp    is op=0x6c; MemAbsIndJmp  { export MemAbsIndJmp; }
+JMP_OP: MemAbsIdxIndJmp    is op=0x7c; MemAbsIdxIndJmp  { export MemAbsIdxIndJmp; }
+
+# JMP
+:JMP JMP_OP    is (op=0x4c | op=0x6c | op=0x7c) ... & JMP_OP
+{
+    goto JMP_OP;
+}
+
+JML_OP: MemAbsLongJmp    is op=0x5c; MemAbsLongJmp  { export MemAbsLongJmp; }
+JML_OP: MemAbsIndLongJmp    is op=0xdc; MemAbsIndLongJmp  { export MemAbsIndLongJmp; }
+
+# JML
+:JML JML_OP    is (op=0x5c | op=0xdc) ... & JML_OP
+{
+    goto JML_OP;
+}
+
+# JSL
+:JSL MemAbsLongJmp    is op=0x22; MemAbsLongJmp
+{
+    local this_pc_full:3 = inst_start;
+    local this_pbr:1 = this_pc_full(2);
+    local this_pc:2 = this_pc_full:2;
+
+    # "The address of the last instruction byte (the fourth instruction byte, or the third operand
+    # byte), not the address of the next instruction."
+    local push_addr:3 = (zext(this_pbr) << 16) | (zext(this_pc + 3));
+
+    push24(push_addr);
+    call MemAbsLongJmp;
+}
+
+JSR_OP: MemAbsJmp    is op=0x20; MemAbsJmp  { export MemAbsJmp; }
+JSR_OP: MemAbsIdxIndJmp    is op=0xfc; MemAbsIdxIndJmp  { export MemAbsIdxIndJmp; }
+
+# JSR
+:JSR JSR_OP    is (op=0x20 | op=0xfc) ... & JSR_OP
+{
+    local this_pc_full:3 = inst_start;
+    local this_pc:2 = this_pc_full:2;
+
+    # "The address of the last instruction byte (the third byte of a three-byte instruction...),
+    # not the address of the next instruction."
+    local push_addr:2 = (this_pc + 2);
+
+    push16(push_addr);
+    call JSR_OP;
+}
 
 # LDA 8 bit.
 :LDA PRIMARY_OP    is (ctx_MF=1 &
@@ -1219,38 +1268,58 @@ macro do_ror16(_out, _data) {
 :RTI    is (ctx_EF=0 & op=0x40)
 {
     pull_status_native();
-    # Not sure if this should be set -- does it conflict with the goto?
-    pull16(PC);
-    pull8(PBR);
-    goto [PC_FULL];
+
+    local pc:2;
+    pull16(pc);
+
+    # "One extra byte is pulled in the 65802/65816 native mode than in emulation mode, the same
+    # extra byte that is pushed by interrupts in native mode, the program bank register."
+    local pbr:1;
+    pull8(pbr);
+
+    # "Unlike the RTS instruction, the program counter address pulled off the stack is the exact
+    # address to return to... It does not need to be incremented as a subroutine’s return address
+    # does."
+    local ret_addr:3 = (zext(pbr) << 16) | zext(pc);
+    goto [ret_addr];
 }
 
 # RTI emulation.
 :RTI    is (ctx_EF=1 & op=0x40)
 {
     pull_status_emulation();
-    # Not sure if this should be set -- does it conflict with the goto?
-    pull16(PC);
-    goto [PC_FULL];
+
+    local pc:2;
+    pull16(pc);
+
+    # "Unlike the RTS instruction, the program counter address pulled off the stack is the exact
+    # address to return to... It does not need to be incremented as a subroutine’s return address
+    # does."
+    local ret_addr:3 = (zext(PBR) << 16) | zext(pc);
+    goto [ret_addr];
 }
 
 :RTL    is op=0x6b
 {
     local pc:2;
     pull16(pc);
-    # Not sure if this should be set -- does it conflict with the return?
-    PC = pc + 1;
-    pull8(PBR);
-    return [PC_FULL];
+    pc = pc + 1;
+
+    local pbr:1;
+    pull8(pbr);
+
+    local ret_addr:3 = (zext(pbr) << 16) | zext(pc);
+    return [ret_addr];
 }
 
 :RTS    is op=0x60
 {
     local pc:2;
     pull16(pc);
-    # Not sure if this should be set -- does it conflict with the return?
-    PC = pc + 1;
-    return [PC_FULL];
+    pc = pc + 1;
+
+    local ret_addr:3 = (zext(PBR) << 16) | zext(pc);
+    return [ret_addr];
 }
 
 # SBC 8 bit binary.
