@@ -45,7 +45,8 @@ define token opbyte (8)
 
 define token data8 (8)
    imm8     = (0,7)
-   rel8      = (0,7) signed
+   rel8     = (0,7) signed
+   unused8  = (0,7)
 ;
 
 define token movearg (8)
@@ -380,31 +381,37 @@ BIT_OP: RefImmMF    is op=0x89; RefImmMF  { export RefImmMF; }
     goto MemPCRelBra;
 }
 
-:BRK    is op=0x00
+# BRK native.
+:BRK $unused8    is (ctx_EF=0 & op=0x00); unused8
 {
-    local pc_inc:2 = PC + 2;
-    local target:3;
-    local is_emulation:1 = $(EF) == 1;
-    if (is_emulation) goto <do_emulation>;
+    local this_pc_full:3 = inst_start;
+    local this_pc:2 = this_pc_full:2;
+    local pc_inc:2 = this_pc + 2;
 
-    <do_native>
     push8(PBR);
     push16(pc_inc);
     push_status_native();
     IF = 1;
     DF = 0;
     PBR = 0;
-    target = zext(*:2 0x00FFE6:3);
-    goto <end>;
 
-    <do_emulation>
+    local target:3 = zext(*:2 0x00FFE6:3);
+    goto [target];
+}
+
+# BRK emulation.
+:BRK $unused8    is (ctx_EF=1 & op=0x00); unused8
+{
+    local this_pc_full:3 = inst_start;
+    local this_pc:2 = this_pc_full:2;
+    local pc_inc:2 = this_pc + 2;
+
     push16(pc_inc);
     local save_bf:1 = BF;  BF = 1;  push_status_emulation();  BF = save_bf;
     IF = 1;
     DF = 0;
-    target = zext(*:2 0x00FFFE:3);
 
-    <end>
+    local target:3 = zext(*:2 0x00FFFE:3);
     goto [target];
 }
 
@@ -471,31 +478,37 @@ BIT_OP: RefImmMF    is op=0x89; RefImmMF  { export RefImmMF; }
     CF = result s>= 0;
 }
 
-:COP    is op=0x02
+# COP native.
+:COP $unused8    is (ctx_EF=0 & op=0x02); unused8
 {
-    local pc_inc:2 = PC + 2;
-    local target:3;
-    local is_emulation:1 = $(EF) == 1;
-    if (is_emulation) goto <do_emulation>;
+    local this_pc_full:3 = inst_start;
+    local this_pc:2 = this_pc_full:2;
+    local pc_inc:2 = this_pc + 2;
 
-    <do_native>
     push8(PBR);
     push16(pc_inc);
     push_status_native();
     IF = 1;
     DF = 0;
     PBR = 0;
-    target = zext(*:2 0x00FFE4:3);
-    goto <end>;
 
-    <do_emulation>
+    local target:3 = zext(*:2 0x00FFE4:3);
+    goto [target];
+}
+
+# COP emulation.
+:COP $unused8    is (ctx_EF=1 & op=0x02); unused8
+{
+    local this_pc_full:3 = inst_start;
+    local this_pc:2 = this_pc_full:2;
+    local pc_inc:2 = this_pc + 2;
+
     push16(pc_inc);
     push_status_emulation();
     IF = 1;
     DF = 0;
-    target = zext(*:2 0x00FFF4:3);
 
-    <end>
+    local target:3 = zext(*:2 0x00FFF4:3);
     goto [target];
 }
 
