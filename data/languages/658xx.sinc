@@ -1,5 +1,10 @@
 # sleigh specification file for WDC 65816
+
 # UNSUPPORTED: 65802 variant.
+# UNSUPPORTED: correct behaviour when an instruction and its operand(s) wrap at the end of the
+#              program bank.
+# UNSUPPORTED: when pulling the context flags MF and XF from the stack Ghidra does not
+#              automatically set the correct processor mode (context variables).
 
 
 define endian=little;
@@ -121,7 +126,7 @@ SEC_OP_X: RefDPIdxX    is bbb=5; RefDPIdxX  { export RefDPIdxX; }
 SEC_OP_Y: SEC_OP_COMMON    is SEC_OP_COMMON  { export SEC_OP_COMMON; }
 SEC_OP_Y: RefAbsIdxY    is bbb=7; RefAbsIdxY  { export RefAbsIdxY; }
 SEC_OP_Y: RefDPIdxY    is bbb=5; RefDPIdxY  { export RefDPIdxY; }
-
+#
 SHIFT_OP: SEC_OP_X    is SEC_OP_X  { export SEC_OP_X; }
 # SHIFT_OP should also include the accumulator addressing mode, but this is handled separately by
 # each instruction.

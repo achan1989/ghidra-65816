@@ -186,35 +186,6 @@ macro pull_status_emulation() {
 }
 
 
-# UNSUPPORTED: correct behaviour when the instruction and operand(s) wrap at the end of the
-#              program bank.
-
-# In the 6502/65C02, the effective address formed using zero page indexed addressing from a zero page
-# base address of $F0 and an index of $20 is $10; that is, zero page indexed effective addresses wrap around to
-# always remain in the zero page. In the emulation mode this is also true. But in native mode, there is no page
-# wraparound: a direct page starting at $2000 combined with a direct page base of $20 and a sixteen-bit index
-# holding $300 results in an effective address of $2320.  (p52)
-
-# [Speaking about the 65802] While the direct page can be set to the zero page, direct page indexed addresses can cross pages
-# in native mode, but wrap on the 6502.  (p58)
-
-# Index wrapping is described on p98.
-# Addressing mode syntax on p155.
-
-# [Speaking about the 658xx] Pay particular attention to the peculiarities of the direct page in the emulation mode: as with the 6502
-# and 65C02, instructions which use direct page addressing modes will [appear to?] “wrap” to stay within the zero page, but
-# only when the direct page register is equal to zero. Opcodes which are not found on the 6502 or 65C02 will not
-# wrap at all, even when the direct page is equal to zero in the emulation mode.  (p278)
-
-# The 6502 emulation mode on the 65802 and 65816 processors (e = 1) differs in that the stack pointer’s
-# high byte is always $01; direct page indexed addressing always wraps around to remain in the direct page rather
-# than crossing over into the next page (so the high direct page byte remains the high byte of all direct page
-# addresses formed). The exception to this is that zero page stack wrapping is only enforced for 6502 and 65C02
-# instructions, and only when DP = 0 in the case of page zero wrapping. New opcodes will cause effective
-# addresses to be generated outside of the zero page or the emulation mode stack page if an effective address
-# calculation overflows the low byte.  (p283)
-
-
 # Combine a low byte and a high byte into one 16 bit word.
 # _out: the returned 16 bit word.
 # _lo: the least significant byte.
