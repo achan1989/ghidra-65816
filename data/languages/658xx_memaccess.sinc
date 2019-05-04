@@ -49,67 +49,85 @@ macro flag16_NZ(_acc) {
     flag16_Z(_acc);
 }
 
-macro push8(_val8) {
+macro push8_native(_val8) {
     local value:1 = _val8;
     local sp:3 = zext(SP);
     *:1 sp = value;
+
     SP = SP - 1;
 }
 
-macro push16(_val16) {
+macro push8_emulation(_val8) {
+    local value:1 = _val8;
+    local sp:3 = zext(SP);
+    *:1 sp = value;
+
+    SPLow = SPLow - 1;
+}
+
+macro push16_native(_val16) {
     local value:2 = _val16;
-    local sp:3;
 
-    # High byte.
-    sp = zext(SP);
-    *:1 sp = value(1);
-    SP = SP - 1;
-
-    # Low byte.
-    sp = zext(SP);
-    *:1 sp = value:1;
-    SP = SP - 1;
+    # High byte, low byte.
+    push8_native(value(1));
+    push8_native(value:1);
 }
 
-macro push24(_val24) {
+macro push16_emulation(_val16) {
+    local value:2 = _val16;
+
+    # High byte, low byte.
+    push8_emulation(value(1));
+    push8_emulation(value:1);
+}
+
+macro push24_native(_val24) {
     local value:3 = _val24;
-    local sp:3;
 
-    # High byte.
-    sp = zext(SP);
-    *:1 sp = value(2);
-    SP = SP - 1;
-
-    # Mid byte.
-    sp = zext(SP);
-    *:1 sp = value(1);
-    SP = SP - 1;
-
-    # Low byte.
-    sp = zext(SP);
-    *:1 sp = value:1;
-    SP = SP - 1;
+    # High byte, mid byte, low byte.
+    push8_native(value(2));
+    push8_native(value(1));
+    push8_native(value:1);
 }
 
-macro pull8(var8) {
+macro pull8_native(var8) {
     SP = SP + 1;
     local sp:3 = zext(SP);
     var8 = *:1 sp;
 }
 
-macro pull16(var16) {
-    local sp:3;
+macro pull8_emulation(var8) {
+    SPLow = SPLow + 1;
+    local sp:3 = zext(SP);
+    var8 = *:1 sp;
+}
+
+macro pull16_native(var16) {
     local temp:2;
+    local temp8:1;
 
     # Low byte.
-    SP = SP + 1;
-    sp = zext(SP);
-    temp[0,8] = *:1 sp;
+    pull8_native(temp8);
+    temp[0,8] = temp8;
 
     # High byte.
-    SP = SP + 1;
-    sp = zext(SP);
-    temp[8,8] = *:1 sp;
+    pull8_native(temp8);
+    temp[8,8] = temp8;
+
+    var16 = temp;
+}
+
+macro pull16_emulation(var16) {
+    local temp:2;
+    local temp8:1;
+
+    # Low byte.
+    pull8_emulation(temp8);
+    temp[0,8] = temp8;
+
+    # High byte.
+    pull8_emulation(temp8);
+    temp[8,8] = temp8;
 
     var16 = temp;
 }
@@ -124,7 +142,7 @@ macro push_status_native() {
     status[2,1] = IF;
     status[1,1] = ZF;
     status[0,1] = CF;
-    push8(status);
+    push8_native(status);
 }
 
 macro push_status_emulation() {
@@ -137,13 +155,13 @@ macro push_status_emulation() {
     status[2,1] = IF;
     status[1,1] = ZF;
     status[0,1] = CF;
-    push8(status);
+    push8_emulation(status);
 }
 
 # UNSUPPORTED: pulling the context flags MF and XF.
 macro pull_status_native() {
     local status:1;
-    pull8(status);
+    pull8_native(status);
     NF = status[7,1];
     VF = status[6,1];
     # MF = status[5,1];
@@ -156,7 +174,7 @@ macro pull_status_native() {
 
 macro pull_status_emulation() {
     local status:1;
-    pull8(status);
+    pull8_emulation(status);
     NF = status[7,1];
     VF = status[6,1];
     # bit 5 unused
@@ -168,7 +186,6 @@ macro pull_status_emulation() {
 }
 
 
-# TODO: for all operations that affect the stack, limit the stack pointer when in emulation mode.
 # UNSUPPORTED: correct behaviour when the instruction and operand(s) wrap at the end of the
 #              program bank.
 

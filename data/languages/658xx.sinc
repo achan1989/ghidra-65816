@@ -384,8 +384,8 @@ BIT_OP: RefImmMF    is op=0x89; RefImmMF  { export RefImmMF; }
     local this_pc:2 = this_pc_full:2;
     local pc_inc:2 = this_pc + 2;
 
-    push8(PBR);
-    push16(pc_inc);
+    push8_native(PBR);
+    push16_native(pc_inc);
     push_status_native();
     IF = 1;
     DF = 0;
@@ -403,7 +403,7 @@ BIT_OP: RefImmMF    is op=0x89; RefImmMF  { export RefImmMF; }
     local this_pc:2 = this_pc_full:2;
     local pc_inc:2 = this_pc + 2;
 
-    push16(pc_inc);
+    push16_emulation(pc_inc);
     local save_bf:1 = BF;  BF = 1;  push_status_emulation();  BF = save_bf;
     IF = 1;
     DF = 0;
@@ -482,8 +482,8 @@ BIT_OP: RefImmMF    is op=0x89; RefImmMF  { export RefImmMF; }
     local this_pc:2 = this_pc_full:2;
     local pc_inc:2 = this_pc + 2;
 
-    push8(PBR);
-    push16(pc_inc);
+    push8_native(PBR);
+    push16_native(pc_inc);
     push_status_native();
     IF = 1;
     DF = 0;
@@ -500,7 +500,7 @@ BIT_OP: RefImmMF    is op=0x89; RefImmMF  { export RefImmMF; }
     local this_pc:2 = this_pc_full:2;
     local pc_inc:2 = this_pc + 2;
 
-    push16(pc_inc);
+    push16_emulation(pc_inc);
     push_status_emulation();
     IF = 1;
     DF = 0;
@@ -739,9 +739,7 @@ JML_OP: MemAbsIndLongJmp    is op=0xdc; MemAbsIndLongJmp  { export MemAbsIndLong
     goto JML_OP;
 }
 
-# JSL
-:JSL MemAbsLongJmp    is op=0x22; MemAbsLongJmp
-{
+macro jsl_calculate_push_addr(_out) {
     local this_pc_full:3 = inst_start;
     local this_pbr:1 = this_pc_full(2);
     local this_pc:2 = this_pc_full:2;
@@ -749,25 +747,66 @@ JML_OP: MemAbsIndLongJmp    is op=0xdc; MemAbsIndLongJmp  { export MemAbsIndLong
     # "The address of the last instruction byte (the fourth instruction byte, or the third operand
     # byte), not the address of the next instruction."
     local push_addr:3 = (zext(this_pbr) << 16) | (zext(this_pc + 3));
+    _out = push_addr;
+}
 
-    push24(push_addr);
+# JSL native.
+:JSL MemAbsLongJmp    is ctx_EF=0 & op=0x22; MemAbsLongJmp
+{
+    local push_addr:3; jsl_calculate_push_addr(push_addr);
+    push24_native(push_addr);
+    call MemAbsLongJmp;
+}
+
+# JSL emulation.
+# Does not limit the top byte of the SP to 1 until the end of the instruction execution.
+:JSL MemAbsLongJmp    is ctx_EF=1 & op=0x22; MemAbsLongJmp
+{
+    local push_addr:3; jsl_calculate_push_addr(push_addr);
+    # "Although the high byte of the stack register is consistently forced to one, new 65816
+    # opcodes executed in the emulation mode will not wrap the stack if the low byte over- or
+    # underflowed in the middle of an instruction."
+    push24_native(push_addr);
+    SPHigh = 1;
     call MemAbsLongJmp;
 }
 
 JSR_OP: MemAbsJmp    is op=0x20; MemAbsJmp  { export MemAbsJmp; }
 JSR_OP: MemAbsIdxIndJmp    is op=0xfc; MemAbsIdxIndJmp  { export MemAbsIdxIndJmp; }
 
-# JSR
-:JSR JSR_OP    is (op=0x20 | op=0xfc) ... & JSR_OP
-{
+macro jsr_calculate_push_addr(_out) {
     local this_pc_full:3 = inst_start;
     local this_pc:2 = this_pc_full:2;
 
     # "The address of the last instruction byte (the third byte of a three-byte instruction...),
     # not the address of the next instruction."
     local push_addr:2 = (this_pc + 2);
+    _out = push_addr;
+}
 
-    push16(push_addr);
+# JSR native, absolute addressing or absolute indexed indirect addressing.
+:JSR JSR_OP    is ctx_EF=0 & (op=0x20 | op=0xfc); JSR_OP
+{
+    local push_addr:2; jsr_calculate_push_addr(push_addr);
+    push16_native(push_addr);
+    call JSR_OP;
+}
+
+# JSR emulation, absolute addressing.
+:JSR JSR_OP    is ctx_EF=1 & op=0x20; JSR_OP
+{
+    local push_addr:2; jsr_calculate_push_addr(push_addr);
+    push16_emulation(push_addr);
+    call JSR_OP;
+}
+
+# JSR emulation, absolute indexed indirect addressing.
+# Does not limit the top byte of the SP to 1 until the end of the instruction execution.
+:JSR JSR_OP    is ctx_EF=1 & op=0xfc; JSR_OP
+{
+    local push_addr:2; jsr_calculate_push_addr(push_addr);
+    push16_native(push_addr);
+    SPHigh = 1;
     call JSR_OP;
 }
 
@@ -997,46 +1036,100 @@ macro do_lsr16(_out, _data) {
     flag16_NZ(C);
 }
 
-:PEA MemStackAbs    is (op=0xf4; MemStackAbs)
+# PEA native.
+:PEA MemStackAbs    is (ctx_EF=0 & op=0xf4; MemStackAbs)
 {
-    push16(MemStackAbs);
+    push16_native(MemStackAbs);
+}
+# PEA emulation.
+# Does not limit the top byte of the SP to 1 until the end of the instruction execution.
+:PEA MemStackAbs    is (ctx_EF=1 & op=0xf4; MemStackAbs)
+{
+    push16_native(MemStackAbs);
+    SPHigh = 1;
 }
 
-:PEI MemStackInd    is (op=0xd4; MemStackInd)
+# PEI native.
+:PEI MemStackInd    is (ctx_EF=0 & op=0xd4; MemStackInd)
 {
-    push16(MemStackInd);
+    push16_native(MemStackInd);
+}
+# PEI emulation.
+# Does not limit the top byte of the SP to 1 until the end of the instruction execution.
+:PEI MemStackInd    is (ctx_EF=1 & op=0xd4; MemStackInd)
+{
+    push16_native(MemStackInd);
+    SPHigh = 1;
 }
 
-:PER MemStackPCRel    is (op=0x62; MemStackPCRel)
+# PER native.
+:PER MemStackPCRel    is (ctx_EF=0 & op=0x62; MemStackPCRel)
 {
-    push16(MemStackPCRel);
+    push16_native(MemStackPCRel);
+}
+# PER emulation.
+# Does not limit the top byte of the SP to 1 until the end of the instruction execution.
+:PER MemStackPCRel    is (ctx_EF=1 & op=0x62; MemStackPCRel)
+{
+    push16_native(MemStackPCRel);
+    SPHigh = 1;
 }
 
-# PHA 8 bit.
-:PHA    is (ctx_MF=1 & op=0x48)
+# PHA 8 bit, native.
+:PHA    is (ctx_MF=1 & ctx_EF=0 & op=0x48)
 {
-    push8(A);
+    push8_native(A);
+}
+# PHA 8 bit, emulation.
+:PHA    is (ctx_MF=1 & ctx_EF=1 & op=0x48)
+{
+    push8_emulation(A);
 }
 
-# PHA 8 bit.
-:PHA    is (ctx_MF=0 & op=0x48)
+# PHA 16 bit, native.
+:PHA    is (ctx_MF=0 & ctx_EF=0 & op=0x48)
 {
-    push16(C);
+    push16_native(C);
+}
+# PHA 16 bit, emulation.
+:PHA    is (ctx_MF=0 & ctx_EF=1 & op=0x48)
+{
+    push16_emulation(C);
 }
 
-:PHB    is op=0x8b
+# PHB native.
+:PHB    is ctx_EF=0 & op=0x8b
 {
-    push8(DBR);
+    push8_native(DBR);
+}
+# PHB emulation.
+:PHB    is ctx_EF=1 & op=0x8b
+{
+    push8_emulation(DBR);
 }
 
-:PHD    is op=0x0b
+# PHD native.
+:PHD    is ctx_EF=0 & op=0x0b
 {
-    push16(DP);
+    push16_native(DP);
+}
+# PHD emulation.
+# Does not limit the top byte of the SP to 1 until the end of the instruction execution.
+:PHD    is ctx_EF=1 & op=0x0b
+{
+    push16_native(DP);
+    SPHigh = 1;
 }
 
-:PHK    is op=0x4b
+# PHK native.
+:PHK    is ctx_EF=0 & op=0x4b
 {
-    push8(PBR);
+    push8_native(PBR);
+}
+# PHK emulation.
+:PHK    is ctx_EF=1 & op=0x4b
+{
+    push8_emulation(PBR);
 }
 
 # PHP native.
@@ -1044,61 +1137,108 @@ macro do_lsr16(_out, _data) {
 {
     push_status_native();
 }
-
 # PHP emulation.
 :PHP    is (ctx_EF=1 & op=0x08)
 {
     push_status_emulation();
 }
 
-# PHX 8 bit.
-:PHX    is (ctx_XF=1 & op=0xda)
+# PHX 8 bit, native.
+:PHX    is (ctx_XF=1 & ctx_EF=0 & op=0xda)
 {
-    push8(XLow);
+    push8_native(XLow);
+}
+# PHX 8 bit, emulation.
+:PHX    is (ctx_XF=1 & ctx_EF=1 & op=0xda)
+{
+    push8_emulation(XLow);
 }
 
-# PHX 16 bit.
-:PHX    is (ctx_XF=0 & op=0xda)
+# PHX 16 bit, native.
+:PHX    is (ctx_XF=0 & ctx_EF=0 & op=0xda)
 {
-    push16(X);
+    push16_native(X);
+}
+# PHX 16 bit, emulation.
+:PHX    is (ctx_XF=0 & ctx_EF=1 & op=0xda)
+{
+    push16_emulation(X);
 }
 
-# PHY 8 bit.
-:PHY    is (ctx_XF=1 & op=0x5a)
+# PHY 8 bit, native.
+:PHY    is (ctx_XF=1 & ctx_EF=0 & op=0x5a)
 {
-    push8(YLow);
+    push8_native(YLow);
+}
+# PHY 8 bit, emulation.
+:PHY    is (ctx_XF=1 & ctx_EF=1 & op=0x5a)
+{
+    push8_emulation(YLow);
 }
 
-# PHY 16 bit.
-:PHY    is (ctx_XF=0 & op=0x5a)
+# PHY 16 bit, native.
+:PHY    is (ctx_XF=0 & ctx_EF=0 & op=0x5a)
 {
-    push16(Y);
+    push16_native(Y);
+}
+# PHY 16 bit, emulation.
+:PHY    is (ctx_XF=0 & ctx_EF=1 & op=0x5a)
+{
+    push16_emulation(Y);
 }
 
-# PLA 8 bit.
-:PLA    is (ctx_MF=1 & op=0x68)
+# PLA 8 bit, native.
+:PLA    is (ctx_MF=1 & ctx_EF=0 & op=0x68)
 {
-    pull8(A);
+    pull8_native(A);
+    flag8_NZ(A);
+}
+# PLA 8 bit, emulation.
+:PLA    is (ctx_MF=1 & ctx_EF=1 & op=0x68)
+{
+    pull8_emulation(A);
     flag8_NZ(A);
 }
 
-# PLA 16 bit.
-:PLA    is (ctx_MF=0 & op=0x68)
+# PLA 16 bit, native.
+:PLA    is (ctx_MF=0 & ctx_EF=0 & op=0x68)
 {
-    pull16(C);
+    pull16_native(C);
+    flag16_NZ(C);
+}
+# PLA 16 bit, emulation.
+:PLA    is (ctx_MF=0 & ctx_EF=1 & op=0x68)
+{
+    pull16_emulation(C);
     flag16_NZ(C);
 }
 
-:PLB    is op=0xab
+# PLB native.
+:PLB    is ctx_EF=0 & op=0xab
 {
-    pull8(DBR);
+    pull8_native(DBR);
+    flag8_NZ(DBR);
+}
+# PLB emulation.
+:PLB    is ctx_EF=1 & op=0xab
+{
+    pull8_emulation(DBR);
     flag8_NZ(DBR);
 }
 
-:PLD    is op=0x2b
+# PLD native.
+:PLD    is ctx_EF=0 & op=0x2b
 {
-    pull16(DP);
+    pull16_native(DP);
     flag16_NZ(DP);
+}
+# PLD emulation.
+# Does not limit the top byte of the SP to 1 until the end of the instruction execution.
+:PLD    is ctx_EF=1 & op=0x2b
+{
+    pull16_native(DP);
+    flag16_NZ(DP);
+    SPHigh = 1;
 }
 
 # PLP native.
@@ -1107,38 +1247,61 @@ macro do_lsr16(_out, _data) {
 {
     pull_status_native();
 }
-
 # PLP emulation.
 :PLP    is (ctx_EF=1 & op=0x28)
 {
     pull_status_emulation();
 }
 
-# PLX 8 bit.
-:PLX    is (ctx_XF=1 & op=0xfa)
+# PLX 8 bit, native.
+:PLX    is (ctx_XF=1 & ctx_EF=0 & op=0xfa)
 {
-    pull8(XLow);
+    pull8_native(XLow);
+    flag8_NZ(XLow);
+}
+# PLX 8 bit, emulation.
+:PLX    is (ctx_XF=1 & ctx_EF=1 & op=0xfa)
+{
+    pull8_emulation(XLow);
     flag8_NZ(XLow);
 }
 
-# PLX 16 bit.
-:PLX    is (ctx_XF=0 & op=0xfa)
+# PLX 16 bit, native.
+:PLX    is (ctx_XF=0 & ctx_EF=0 & op=0xfa)
 {
-    pull16(X);
+    pull16_native(X);
+    flag16_NZ(X);
+}
+# PLX 16 bit, emulation.
+:PLX    is (ctx_XF=0 & ctx_EF=1 & op=0xfa)
+{
+    pull16_emulation(X);
     flag16_NZ(X);
 }
 
-# PLY 8 bit.
-:PLY    is (ctx_XF=1 & op=0x7a)
+# PLY 8 bit, native.
+:PLY    is (ctx_XF=1 & ctx_EF=0 & op=0x7a)
 {
-    pull8(YLow);
+    pull8_native(YLow);
+    flag8_NZ(YLow);
+}
+# PLY 8 bit, emulation.
+:PLY    is (ctx_XF=1 & ctx_EF=1 & op=0x7a)
+{
+    pull8_emulation(YLow);
     flag8_NZ(YLow);
 }
 
-# PLY 16 bit.
-:PLY    is (ctx_XF=0 & op=0x7a)
+# PLY 16 bit, native.
+:PLY    is (ctx_XF=0 & ctx_EF=0 & op=0x7a)
 {
-    pull16(Y);
+    pull16_native(Y);
+    flag16_NZ(Y);
+}
+# PLY 16 bit, emulation.
+:PLY    is (ctx_XF=0 & ctx_EF=1 & op=0x7a)
+{
+    pull16_emulation(Y);
     flag16_NZ(Y);
 }
 
@@ -1283,12 +1446,12 @@ macro do_ror16(_out, _data) {
     pull_status_native();
 
     local pc:2;
-    pull16(pc);
+    pull16_native(pc);
 
     # "One extra byte is pulled in the 65802/65816 native mode than in emulation mode, the same
     # extra byte that is pushed by interrupts in native mode, the program bank register."
     local pbr:1;
-    pull8(pbr);
+    pull8_native(pbr);
 
     # "Unlike the RTS instruction, the program counter address pulled off the stack is the exact
     # address to return to... It does not need to be incremented as a subroutine’s return address
@@ -1305,7 +1468,7 @@ macro do_ror16(_out, _data) {
     local save_bf:1 = BF;  pull_status_emulation();  BF = save_bf;
 
     local pc:2;
-    pull16(pc);
+    pull16_emulation(pc);
 
     # "Unlike the RTS instruction, the program counter address pulled off the stack is the exact
     # address to return to... It does not need to be incremented as a subroutine’s return address
@@ -1314,23 +1477,51 @@ macro do_ror16(_out, _data) {
     goto [ret_addr];
 }
 
-:RTL    is op=0x6b
+# RTL native.
+:RTL    is ctx_EF=0 & op=0x6b
 {
     local pc:2;
-    pull16(pc);
+    pull16_native(pc);
     pc = pc + 1;
 
     local pbr:1;
-    pull8(pbr);
+    pull8_native(pbr);
 
     local ret_addr:3 = (zext(pbr) << 16) | zext(pc);
     return [ret_addr];
 }
 
-:RTS    is op=0x60
+# RTL emulation.
+# Does not limit the top byte of the SP to 1 until the end of the instruction execution.
+:RTL    is ctx_EF=1 & op=0x6b
 {
     local pc:2;
-    pull16(pc);
+    pull16_native(pc);
+    pc = pc + 1;
+
+    local pbr:1;
+    pull8_native(pbr);
+
+    local ret_addr:3 = (zext(pbr) << 16) | zext(pc);
+    SPHigh = 1;
+    return [ret_addr];
+}
+
+# RTS native.
+:RTS    is ctx_EF=0 & op=0x60
+{
+    local pc:2;
+    pull16_native(pc);
+    pc = pc + 1;
+
+    local ret_addr:3 = (zext(PBR) << 16) | zext(pc);
+    return [ret_addr];
+}
+# RTS emulation.
+:RTS    is ctx_EF=1 & op=0x60
+{
+    local pc:2;
+    pull16_emulation(pc);
     pc = pc + 1;
 
     local ret_addr:3 = (zext(PBR) << 16) | zext(pc);
@@ -1609,6 +1800,7 @@ STZ_OP: RefDPIdxX    is op=0x74; RefDPIdxX  { export RefDPIdxX; }
 :TCS    is (ctx_EF=1 & op=0x1b)
 {
     SPLow = A;
+    SPHigh = 1;
 }
 
 :TDC    is op=0x7b
