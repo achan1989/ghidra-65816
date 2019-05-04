@@ -1243,9 +1243,20 @@ macro do_lsr16(_out, _data) {
 
 # PLP native.
 # UNSUPPORTED: pulling the context flags MF and XF.
+define pcodeop unknown_native_status_pull;
 :PLP    is (ctx_EF=0 & op=0x28)
 {
     pull_status_native();
+    # Don't know whether XF is now set.
+    local is_x16:1 = unknown_native_status_pull();
+
+    if (is_x16) goto <skip_shrink>;
+    # "When a sixteen-bit index register is switched to eight bits, the high byte is lost
+    # irretrievably and replaced by a zero."
+    XHigh = 0;
+    YHigh = 0;
+
+    <skip_shrink>
 }
 # PLP emulation.
 :PLP    is (ctx_EF=1 & op=0x28)
@@ -1444,6 +1455,15 @@ macro do_ror16(_out, _data) {
 :RTI    is (ctx_EF=0 & op=0x40)
 {
     pull_status_native();
+    local is_x16:1 = unknown_native_status_pull();
+
+    if (is_x16) goto <skip_shrink>;
+    # "When a sixteen-bit index register is switched to eight bits, the high byte is lost
+    # irretrievably and replaced by a zero."
+    XHigh = 0;
+    YHigh = 0;
+
+    <skip_shrink>
 
     local pc:2;
     pull16_native(pc);
@@ -1662,6 +1682,10 @@ macro do_sep(op_nf, op_vf, op_df, op_if, op_zf, op_cf) {
     [ ctx_XF=1; globalset(inst_start, ctx_XF); ]
 {
     do_sep(op_nf:1, op_vf:1, op_df:1, op_if:1, op_zf:1, op_cf:1);
+    # "When a sixteen-bit index register is switched to eight bits, the high byte is lost
+    # irretrievably and replaced by a zero."
+    XHigh = 0;
+    YHigh = 0;
 }
 :SEP "#$"op_flags    is (ctx_EF=0 & op=0xe2; op_flags & op_mf=1 & op_xf=0 &
     op_nf & op_vf & op_df & op_if & op_zf & op_cf)
@@ -1675,6 +1699,10 @@ macro do_sep(op_nf, op_vf, op_df, op_if, op_zf, op_cf) {
       ctx_MF=1; globalset(inst_start, ctx_MF); ]
 {
     do_sep(op_nf:1, op_vf:1, op_df:1, op_if:1, op_zf:1, op_cf:1);
+    # "When a sixteen-bit index register is switched to eight bits, the high byte is lost
+    # irretrievably and replaced by a zero."
+    XHigh = 0;
+    YHigh = 0;
 }
 
 # SEP emulation.
