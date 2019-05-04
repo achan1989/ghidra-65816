@@ -1,4 +1,5 @@
 # sleigh specification file for WDC 65816
+# UNSUPPORTED: 65802 variant.
 
 
 define endian=little;
@@ -74,11 +75,6 @@ define token data16 (16)
 define token data24 (24)
     imm24 = (0,23)
 ;
-
-
-# TODO: deal with 65802/65816 in native/emulation modes?
-# TODO: make sure we're setting flags for all instructions.
-# TODO: check instructions' use of DP addressing modes with or without special emulation behaviour.
 
 
 ##################################################################
@@ -400,6 +396,7 @@ BIT_OP: RefImmMF    is op=0x89; RefImmMF  { export RefImmMF; }
 }
 
 # BRK emulation.
+# UNKNOWN: is BF set when jumping to the handler, or is BF only set on the stack?
 :BRK $unused8    is (ctx_EF=1 & op=0x00); unused8
 {
     local this_pc_full:3 = inst_start;
@@ -1104,7 +1101,8 @@ macro do_lsr16(_out, _data) {
     flag16_NZ(DP);
 }
 
-# PLP native. Does not support setting the context flags MF, XF.
+# PLP native.
+# UNSUPPORTED: pulling the context flags MF and XF.
 :PLP    is (ctx_EF=0 & op=0x28)
 {
     pull_status_native();
@@ -1179,6 +1177,7 @@ macro do_rep(op_nf, op_vf, op_df, op_if, op_zf, op_cf) {
 }
 
 # REP emulation.
+# "Neither the break flag nor bit five (the 6502’s undefined flag bit) are affected by REP."
 :REP "#$"op_flags    is (ctx_EF=1 & op=0xc2; op_flags
     & op_nf & op_vf & op_df & op_if & op_zf & op_cf)
 {
@@ -1277,7 +1276,8 @@ macro do_ror16(_out, _data) {
     C = result;
 }
 
-# RTI native. Does not support pulling the context flags MF, XF.
+# RTI native.
+# UNSUPPORTED: pulling the context flags MF and XF.
 :RTI    is (ctx_EF=0 & op=0x40)
 {
     pull_status_native();
@@ -1300,7 +1300,9 @@ macro do_ror16(_out, _data) {
 # RTI emulation.
 :RTI    is (ctx_EF=1 & op=0x40)
 {
-    pull_status_emulation();
+    # "Each flag takes the value of its corresponding bit in the stacked status byte, except that
+    # the Break flag is ignored."
+    local save_bf:1 = BF;  pull_status_emulation();  BF = save_bf;
 
     local pc:2;
     pull16(pc);
@@ -1485,6 +1487,7 @@ macro do_sep(op_nf, op_vf, op_df, op_if, op_zf, op_cf) {
 }
 
 # SEP emulation.
+# "Neither the break flag nor bit five (the 6502’s non-flag bit) is affected by SEP."
 :SEP "#$"op_flags    is (ctx_EF=1 & op=0xe2; op_flags &
     op_nf & op_vf & op_df & op_if & op_zf & op_cf)
 {
@@ -1759,7 +1762,7 @@ define pcodeop wai;
     wai();
 }
 
-:WDM    is op=0x42; imm8  {}
+:WDM    is op=0x42; unused8  {}
 
 :XBA    is op=0xeb
 {
@@ -1770,6 +1773,7 @@ define pcodeop wai;
 }
 
 # XCE native -> ?
+# UNKNOWN: the correct behaviour of XCE when native -> native
 :XCE    is ctx_EF=0 & op=0xfb
     [ ctx_EF=CF; globalset(inst_next, ctx_EF);
       ctx_MF=1; globalset(inst_next, ctx_MF);
@@ -1795,6 +1799,7 @@ define pcodeop wai;
 }
 
 # XCE emulation -> ?
+# UNKNOWN: the correct behaviour of XCE when emulation -> emulation
 :XCE    is ctx_EF=1 & op=0xfb
     [ ctx_EF=CF; globalset(inst_next, ctx_EF);
       ctx_MF=1; globalset(inst_next, ctx_MF);
