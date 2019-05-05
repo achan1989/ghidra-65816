@@ -1,4 +1,11 @@
-# sleigh specification file for WDC 65816
+# sleigh specification file for the WDC 65816
+#
+# I have not used the "correct" model of a two-byte program counter, as this would require the use
+# of overlay address spaces (which sounds like a pain). Instead, Ghidra considers the program
+# counter to be the three-byte combination of the PBR and PC registers. This allows for all of the
+# address space to be mapped and accessed easily, but means that Ghidra will not behave correctly
+# when analysing an instruction at the end of a program bank if the operands wrap at the bank
+# boundary.
 
 # UNSUPPORTED: 65802 variant.
 # UNSUPPORTED: correct behaviour when an instruction and its operand(s) wrap at the end of the
