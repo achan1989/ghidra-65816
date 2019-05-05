@@ -5,6 +5,7 @@
 #              program bank.
 # UNSUPPORTED: when pulling the context flags MF and XF from the stack Ghidra does not
 #              automatically set the correct processor mode (context variables).
+# UNSUPPORTED: automatic entry point symbols.
 
 
 define endian=little;
