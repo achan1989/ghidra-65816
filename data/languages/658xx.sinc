@@ -523,10 +523,10 @@ BIT_OP: RefImmMF    is op=0x89; RefImmMF  { export RefImmMF; }
 }
 
 CPXY_OP: SEC_OP_COMMON    is (cc=0) ... & SEC_OP_COMMON  { export SEC_OP_COMMON; }
-CPXY_OP: RefImmMF    is bbb=0; RefImmMF  { export RefImmMF; }
+CPXY_OP: RefImmXF    is bbb=0; RefImmXF  { export RefImmXF; }
 
 # CPX 8 bit.
-:CPX CPXY_OP    is (ctx_MF=1 & (op=0xe0 | op=0xec | op=0xe4)) ... & CPXY_OP {
+:CPX CPXY_OP    is (ctx_XF=1 & (op=0xe0 | op=0xec | op=0xe4)) ... & CPXY_OP {
     local data:1; deref_read8(data, CPXY_OP);
     local result:4 = sext(XLow) - sext(data);
     flag8_NZ(result:1);
@@ -534,7 +534,7 @@ CPXY_OP: RefImmMF    is bbb=0; RefImmMF  { export RefImmMF; }
 }
 
 # CPX 16 bit.
-:CPX CPXY_OP    is (ctx_MF=0 & (op=0xe0 | op=0xec | op=0xe4)) ... & CPXY_OP {
+:CPX CPXY_OP    is (ctx_XF=0 & (op=0xe0 | op=0xec | op=0xe4)) ... & CPXY_OP {
     local data:2; deref_read16(data, CPXY_OP);
     local result:4 = sext(X) - sext(data);
     flag16_NZ(result:2);
@@ -542,7 +542,7 @@ CPXY_OP: RefImmMF    is bbb=0; RefImmMF  { export RefImmMF; }
 }
 
 # CPY 8 bit.
-:CPY CPXY_OP    is (ctx_MF=0 & (op=0xc0 | op=0xcc | op=0xc4)) ... & CPXY_OP {
+:CPY CPXY_OP    is (ctx_XF=0 & (op=0xc0 | op=0xcc | op=0xc4)) ... & CPXY_OP {
     local data:1; deref_read8(data, CPXY_OP);
     local result:4 = sext(YLow) - sext(data);
     flag8_NZ(result:1);
@@ -550,7 +550,7 @@ CPXY_OP: RefImmMF    is bbb=0; RefImmMF  { export RefImmMF; }
 }
 
 # CPY 16 bit.
-:CPY CPXY_OP    is (ctx_MF=1 & (op=0xc0 | op=0xcc | op=0xc4)) ... & CPXY_OP {
+:CPY CPXY_OP    is (ctx_XF=1 & (op=0xc0 | op=0xcc | op=0xc4)) ... & CPXY_OP {
     local data:2; deref_read16(data, CPXY_OP);
     local result:4 = sext(Y) - sext(data);
     flag16_NZ(result:2);
@@ -604,7 +604,7 @@ macro do_dec16(_out, _data) {
 }
 
 # DEX 8 bit.
-:DEX    is (ctx_MF=1 & op=0xca)
+:DEX    is (ctx_XF=1 & op=0xca)
 {
     local result:1 = XLow - 1;
     flag8_NZ(result);
@@ -612,7 +612,7 @@ macro do_dec16(_out, _data) {
 }
 
 # DEX 16 bit.
-:DEX    is (ctx_MF=0 & op=0xca)
+:DEX    is (ctx_XF=0 & op=0xca)
 {
     local result:2 = X - 1;
     flag16_NZ(result);
@@ -620,7 +620,7 @@ macro do_dec16(_out, _data) {
 }
 
 # DEY 8 bit.
-:DEY    is (ctx_MF=1 & op=0x88)
+:DEY    is (ctx_XF=1 & op=0x88)
 {
     local result:1 = YLow - 1;
     flag8_NZ(result);
@@ -628,7 +628,7 @@ macro do_dec16(_out, _data) {
 }
 
 # DEY 16 bit.
-:DEY    is (ctx_MF=0 & op=0x88)
+:DEY    is (ctx_XF=0 & op=0x88)
 {
     local result:2 = Y - 1;
     flag16_NZ(result);
@@ -702,7 +702,7 @@ macro do_inc16(_out, _data) {
 }
 
 # INX 8 bit.
-:INX    is (ctx_MF=1 & op=0xe8)
+:INX    is (ctx_XF=1 & op=0xe8)
 {
     local result:1 = XLow + 1;
     flag8_NZ(result);
@@ -710,7 +710,7 @@ macro do_inc16(_out, _data) {
 }
 
 # INX 16 bit.
-:INX    is (ctx_MF=0 & op=0xe8)
+:INX    is (ctx_XF=0 & op=0xe8)
 {
     local result:2 = X + 1;
     flag16_NZ(result);
@@ -718,7 +718,7 @@ macro do_inc16(_out, _data) {
 }
 
 # INY 8 bit.
-:INY    is (ctx_MF=1 & op=0xc8)
+:INY    is (ctx_XF=1 & op=0xc8)
 {
     local result:1 = YLow + 1;
     flag8_NZ(result);
@@ -726,7 +726,7 @@ macro do_inc16(_out, _data) {
 }
 
 # INY 16 bit.
-:INY    is (ctx_MF=0 & op=0xc8)
+:INY    is (ctx_XF=0 & op=0xc8)
 {
     local result:2 = Y + 1;
     flag16_NZ(result);
@@ -848,10 +848,10 @@ macro jsr_calculate_push_addr(_out) {
 }
 
 LDX_OP: SEC_OP_Y    is (aaa=5) ... & SEC_OP_Y  { export SEC_OP_Y; }
-LDX_OP: RefImmMF    is (bbb=0) ... & RefImmMF  { export RefImmMF; }
+LDX_OP: RefImmXF    is bbb=0; RefImmXF  { export RefImmXF; }
 
 # LDX 8 bit.
-:LDX LDX_OP    is (ctx_MF=1 &
+:LDX LDX_OP    is (ctx_XF=1 &
     (op=0xa2 | op=0xae | op=0xa6 | op=0xbe | op=0xb6)) ... & LDX_OP
 {
     local data:1; deref_read8(data, LDX_OP);
@@ -860,7 +860,7 @@ LDX_OP: RefImmMF    is (bbb=0) ... & RefImmMF  { export RefImmMF; }
 }
 
 # LDX 16 bit.
-:LDX LDX_OP    is (ctx_MF=0 &
+:LDX LDX_OP    is (ctx_XF=0 &
     (op=0xa2 | op=0xae | op=0xa6 | op=0xbe | op=0xb6)) ... & LDX_OP
 {
     local data:2; deref_read16(data, LDX_OP);
@@ -869,10 +869,10 @@ LDX_OP: RefImmMF    is (bbb=0) ... & RefImmMF  { export RefImmMF; }
 }
 
 LDY_OP: SEC_OP_X    is (aaa=5) ... & SEC_OP_X  { export SEC_OP_X; }
-LDY_OP: RefImmMF    is (bbb=0) ... & RefImmMF  { export RefImmMF; }
+LDY_OP: RefImmXF    is bbb=0; RefImmXF  { export RefImmXF; }
 
 # LDY 8 bit.
-:LDY LDY_OP    is (ctx_MF=1 &
+:LDY LDY_OP    is (ctx_XF=1 &
     (op=0xa0 | op=0xac | op=0xa4 | op=0xbc | op=0xb4)) ... & LDY_OP
 {
     local data:1; deref_read8(data, LDY_OP);
@@ -881,7 +881,7 @@ LDY_OP: RefImmMF    is (bbb=0) ... & RefImmMF  { export RefImmMF; }
 }
 
 # LDY 16 bit.
-:LDY LDY_OP    is (ctx_MF=0 &
+:LDY LDY_OP    is (ctx_XF=0 &
     (op=0xa0 | op=0xac | op=0xa4 | op=0xbc | op=0xb4)) ... & LDY_OP
 {
     local data:2; deref_read16(data, LDY_OP);
@@ -940,7 +940,7 @@ macro do_lsr16(_out, _data) {
 }
 
 # MVN 8 bit.
-:MVN srcbk,destbk    is (ctx_MF=1 & (op=0x54 ; destbk; srcbk))
+:MVN srcbk,destbk    is (ctx_XF=1 & (op=0x54 ; destbk; srcbk))
 {
     local src_bank:1 = srcbk;
     local dest_bank:1 = destbk;
@@ -961,7 +961,7 @@ macro do_lsr16(_out, _data) {
 }
 
 # MVN 16 bit.
-:MVN srcbk,destbk    is (ctx_MF=0 & (op=0x54 ; destbk; srcbk))
+:MVN srcbk,destbk    is (ctx_XF=0 & (op=0x54 ; destbk; srcbk))
 {
     local src_bank:1 = srcbk;
     local dest_bank:1 = destbk;
@@ -982,7 +982,7 @@ macro do_lsr16(_out, _data) {
 }
 
 # MVP 8 bit.
-:MVP srcbk,destbk    is (ctx_MF=1 & (op=0x44 ; destbk; srcbk))
+:MVP srcbk,destbk    is (ctx_XF=1 & (op=0x44 ; destbk; srcbk))
 {
     local src_bank:1 = srcbk;
     local dest_bank:1 = destbk;
@@ -1003,7 +1003,7 @@ macro do_lsr16(_out, _data) {
 }
 
 # MVP 16 bit.
-:MVP srcbk,destbk    is (ctx_MF=0 & (op=0x44 ; destbk; srcbk))
+:MVP srcbk,destbk    is (ctx_XF=0 & (op=0x44 ; destbk; srcbk))
 {
     local src_bank:1 = srcbk;
     local dest_bank:1 = destbk;

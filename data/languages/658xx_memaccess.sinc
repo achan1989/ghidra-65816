@@ -561,10 +561,17 @@ RefImm16: #$imm16    is imm16  {
     $(REF_EXPORT);
 }
 # Select the size based on MF.
-RefImmMF: RefImm8    is ctx_MF=1 & RefImm8  {
+RefImmMF: RefImm8    is ctx_MF=1; RefImm8  {
     export RefImm8;
 }
-RefImmMF: RefImm16    is ctx_MF=0 & RefImm16  {
+RefImmMF: RefImm16    is ctx_MF=0; RefImm16  {
+    export RefImm16;
+}
+# Select the size based on XF.
+RefImmXF: RefImm8    is ctx_XF=1; RefImm8  {
+    export RefImm8;
+}
+RefImmXF: RefImm16    is ctx_XF=0; RefImm16  {
     export RefImm16;
 }
 
