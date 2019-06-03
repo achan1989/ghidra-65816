@@ -798,7 +798,7 @@ macro jsr_calculate_push_addr(_out) {
 }
 
 # JSR native, absolute addressing or absolute indexed indirect addressing.
-:JSR JSR_OP    is ctx_EF=0 & (op=0x20 | op=0xfc); JSR_OP
+:JSR JSR_OP    is ctx_EF=0 & (op=0x20 | op=0xfc) ... & JSR_OP
 {
     local push_addr:2; jsr_calculate_push_addr(push_addr);
     push16_native(push_addr);
@@ -806,7 +806,7 @@ macro jsr_calculate_push_addr(_out) {
 }
 
 # JSR emulation, absolute addressing.
-:JSR JSR_OP    is ctx_EF=1 & op=0x20; JSR_OP
+:JSR JSR_OP    is ctx_EF=1 & op=0x20 ... & JSR_OP
 {
     local push_addr:2; jsr_calculate_push_addr(push_addr);
     push16_emulation(push_addr);
@@ -815,7 +815,7 @@ macro jsr_calculate_push_addr(_out) {
 
 # JSR emulation, absolute indexed indirect addressing.
 # Does not limit the top byte of the SP to 1 until the end of the instruction execution.
-:JSR JSR_OP    is ctx_EF=1 & op=0xfc; JSR_OP
+:JSR JSR_OP    is ctx_EF=1 & op=0xfc ... & JSR_OP
 {
     local push_addr:2; jsr_calculate_push_addr(push_addr);
     push16_native(push_addr);
