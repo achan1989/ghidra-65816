@@ -1576,7 +1576,7 @@ macro do_ror16(_out, _data) {
 
     if (is_dec) goto <decimal>;
 
-    <binary>
+#    <binary>
     result = zext(A) + zext(data) + zext(CF);
     goto <flags>;
 
@@ -1619,7 +1619,7 @@ macro do_ror16(_out, _data) {
 
     if (is_dec) goto <decimal>;
 
-    <binary>
+#    <binary>
     result = zext(C) + zext(data) + zext(CF);
     goto <flags>;
 
@@ -2015,7 +2015,7 @@ define pcodeop wai;
     local is_to_native:1 = (CF == 0);
     if (is_to_native) goto <to_native>;
 
-    <to_emulation>
+#    <to_emulation>
     XHigh = 0;
     YHigh = 0;
     SPHigh = 1;
@@ -2041,7 +2041,7 @@ define pcodeop wai;
     local is_to_native:1 = (CF == 0);
     if (is_to_native) goto <to_native>;
 
-    <to_emulation>
+#    <to_emulation>
     # It's not clear what happens when XCE re-switches into the current mode.
     # I've assumed everything happens just as it would in a "real" mode switch.
     XHigh = 0;
