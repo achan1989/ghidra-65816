@@ -1,4 +1,9 @@
+**This repo is no longer maintained,** and I'm unlikely to come back to it in the future.
+
+-------
+
 # ghidra-65816
+
 This is a WDC 65816 processor module for Ghidra.
 
 This is an early release. I've not used it much yet, so expect bugs. Feedback and pull requests are welcome!
